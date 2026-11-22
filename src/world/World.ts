@@ -19,7 +19,7 @@ import { FrameBudget } from './FrameBudget.ts';
 import { CasterView, worldInputBlocked } from './CasterView.ts';
 import { SPELL_RANGE, chooseRayTarget, screenPointAtDepth, terrainHeight } from './spatial.ts';
 import { disposeGroup, type ScreenFeedback } from './vfx.ts';
-import { SPELL_LIGHTS, SPELL_LIGHT_COUNT } from './LanternLighting.ts';
+import { SPELL_LIGHT_COUNT } from './LanternLighting.ts';
 import type { LevelDef, Mood } from '../game/campaign.ts';
 import type { EncounterSnapshot } from './Encounter.ts';
 import { lerpMood, MOODS, moodState, type MoodState } from './moods.ts';
@@ -28,6 +28,7 @@ import { FIGURE_LIGHT } from './rig/figureMaterial.ts';
 import type { ParticleSystem as Particles } from './particles.ts';
 import { DESIGNS } from './characters/index.ts';
 import { prepareBodies } from './rig/bakery.ts';
+import { publishPaintedLights, spellFlashLevel, type PaintedLight } from './SpellLight.ts';
 import { Character } from './rig/Character.ts';
 
 /**
@@ -105,7 +106,7 @@ interface StuckArrow {
   life: number;
 }
 
-interface PooledLight { light: THREE.PointLight; age: number; duration: number; peak: number }
+interface PooledLight { light: THREE.PointLight; paint: PaintedLight; age: number; duration: number; peak: number }
 
 const CURSOR_DEPTH = 7;
 const LABEL_LIFETIME = 1.8;
@@ -138,6 +139,7 @@ export class World {
   private readonly spellAnimations: SpellAnimation[] = [];
   private readonly stuckArrows: StuckArrow[] = [];
   private readonly worldLights = Array.from({ length: SPELL_LIGHT_COUNT }, () => ({ position: new THREE.Vector3(), color: new THREE.Color(), level: 0, radius: 10 }));
+  private readonly paintSources: PaintedLight[] = [...this.worldLights];
   private readonly container: HTMLElement;
   private readonly clock = new THREE.Clock();
   private readonly scratch = new THREE.Vector3();
@@ -217,7 +219,9 @@ export class World {
     for (let i = 0; i < LIGHT_POOL; i++) {
       const light = new THREE.PointLight('#ffffff', 0, 10, 2);
       this.scene.add(light);
-      this.lights.push({ light, age: 1, duration: 1, peak: 0 });
+      const paint = { position: light.position, color: light.color, level: 0, radius: 10 };
+      this.lights.push({ light, paint, age: 1, duration: 1, peak: 0 });
+      this.paintSources.push(paint);
     }
 
     this.encounter = new Encounter(this.scene, this.camera, this.environment.obstacles,
@@ -547,6 +551,10 @@ export class World {
       groundY: terrainHeight(target.x, target.z), cameraQuaternion: this.camera.quaternion, cameraPosition: this.camera.position,
       depth: Math.max(0.5, -cameraTarget.z), hand: from, fov: this.camera.fov, particles: this.particles, mist: this.mist,
       screen: this.feedback, light: (position, c, intensity, duration, distance) => this.flashLight(position, c, intensity, duration, distance),
+      illuminate: (slot, position, c, level, radius) => {
+        const light = this.worldLights[slot];
+        if (light) { light.position.copy(position); light.color.copy(c); light.level = level; light.radius = radius; }
+      },
     });
     this.scene.add(animation.group);
     this.spellAnimations.push(animation);
@@ -617,6 +625,7 @@ export class World {
     pick.light.position.copy(position);
     pick.light.color.copy(color);
     pick.light.distance = distance;
+    pick.paint.radius = distance;
     pick.peak = intensity;
     pick.age = 0;
     pick.duration = Math.max(0.05, duration);
@@ -752,7 +761,7 @@ export class World {
 
   private frame(dt: number, render = true, renderDt = dt): void {
     this.idleTime += dt;
-    // The drawn characters' line boils with each new drawing: twelve drawings a second.
+    // Effects advance on twos; the characters' stable outline pressure must not be re-seeded.
     this.drawingClock += renderDt;
     INK.uDrawing.value = Math.floor(this.drawingClock * 12);
     const paused = worldInputBlocked() && !this.cinematic;
@@ -791,19 +800,15 @@ export class World {
       this.spellAnimations.splice(i, 1);
     }
 
-    // Shared world lights: upload this frame's levels, then let them die unless refreshed.
-    this.worldLights.forEach((light, i) => {
-      SPELL_LIGHTS.uSpellLights.value[i].set(light.position.x, light.position.y, light.position.z, light.level);
-      SPELL_LIGHTS.uSpellColors.value[i].set(light.color.r, light.color.g, light.color.b, light.radius);
-      light.level *= Math.exp(-dt * 30);
-      if (light.level < 0.005) light.level = 0;
-    });
-
     for (const pooled of this.lights) {
       pooled.age += dt;
-      const u = pooled.age / pooled.duration;
-      pooled.light.intensity = u >= 1 ? 0 : pooled.peak * Math.pow(1 - u, 1.6) * Math.min(1, u * 12 + 0.25);
+      pooled.light.intensity = spellFlashLevel(pooled.age, pooled.duration, pooled.peak);
+      // Custom ink/paint shaders do not consume THREE.PointLight. The same flash must also enter
+      // their shared field; previously only lightning's explicit illuminate callback reached them.
+      pooled.paint.level = pooled.light.intensity * 0.12 * (this.reducedMotion.matches ? 0.65 : 1);
     }
+    publishPaintedLights(this.paintSources);
+    for (const light of this.worldLights) { light.level *= Math.exp(-dt * 30); if (light.level < 0.005) light.level = 0; }
 
     this.particles.update(simulationDt || dt * 0.25);
     this.mist.update(simulationDt || dt * 0.25);

@@ -136,6 +136,7 @@ function moonblade(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext)
     blade.rotateZ(Math.PI / 2 + Math.sin(age * 6) * 0.15);
     blade.scale.setScalar(0.9 + Math.min(1, age * 3) * 0.4);
     (blade.material as THREE.MeshBasicMaterial).opacity = 0.8 * clamp01(1 - Math.max(0, age - travel) / 0.4);
+    ctx.illuminate?.(2, p, color, (blade.material as THREE.MeshBasicMaterial).opacity * 0.75, 6);
     trail.push(p);
     trail.update(dt, ctx.cameraPosition);
     trail.opacity = clamp01(1 - Math.max(0, age - travel) / 0.4);
@@ -226,7 +227,7 @@ function spiritStag(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext
     trail.update(dt, ctx.cameraPosition);
     trail.opacity = clamp01(1 - Math.max(0, age - travel) / 0.6);
     if (Math.random() < 0.9) ctx.particles?.emit({ x: p.x + (Math.random() - 0.5), y: p.y + Math.random() * 3, z: p.z + (Math.random() - 0.5), vx: -dir.x * 2, vy: 0.5, vz: -dir.z * 2, color: Math.random() < 0.5 ? color : new THREE.Color('#9fe8ff'), size: 0.1, sizeEnd: 0.01, ttl: 0.8, drag: 1.2, style: 'glow' });
-    ctx.illuminate?.(1, tmp.copy(p).setY(p.y + 2), color, 1.4, 9);
+    ctx.illuminate?.(1, tmp.copy(p).setY(p.y + 2), color, 1.4 * clamp01(age / 0.2) * clamp01(1 - Math.max(0, age - travel) / 0.8), 9);
     while (ctx.delays && hitIndex < ctx.delays.length && age >= ctx.delays[hitIndex]) { impactBurst(ctx, ctx.targets![hitIndex], color, 1.3); ctx.screen?.shake(0.12); hitIndex++; }
   }, 0.1, () => ctx.screen?.flash('#f2f7ff', 0.2), () => { trail.dispose(); stag.dispose(); });
 }

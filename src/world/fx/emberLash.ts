@@ -393,6 +393,10 @@ export function emberLash(origin: THREE.Vector3, target: THREE.Vector3, _color: 
       }
       geometry.attributes.position.needsUpdate = true;
     }
+    if (age >= gather && age < strike) {
+      curve.getPoint(ease, p);
+      ctx.illuminate?.(2, p, EMBER, 0.55, 5);
+    }
     // ── Impact and recovery. ──
     const since = age - strike;
     if (since >= 0) {
@@ -431,7 +435,10 @@ export function emberLash(origin: THREE.Vector3, target: THREE.Vector3, _color: 
         ctx.particles?.emit({ x: target.x + (Math.random() - 0.5) * 0.6, y: target.y + Math.random() * 0.5, z: target.z + (Math.random() - 0.5) * 0.6, vx: (Math.random() - 0.5) * 0.4, vy: 0.9 + Math.random() * 1.1, vz: (Math.random() - 0.5) * 0.4, color: Math.random() < 0.5 ? EMBER : EMBER_DEEP, size: 0.035, sizeEnd: 0.004, ttl: 1.0, drag: 0.8, gravity: -0.6, style: 'spark' });
       }
       // The fire's light flickers, then dies down.
-      if (since < 1.2 && Math.random() < 0.25) ctx.light?.(target.clone().setY(target.y + 0.8), EMBER, 4 + Math.random() * 3 * (1 - since), 0.18, 7);
+      if (since < 1.6) {
+        p.copy(target).y += 0.8;
+        ctx.illuminate?.(2, p, EMBER, (0.55 + 0.06 * Math.sin(since * 9)) * clamp01(1 - since / 1.6), 7);
+      }
     }
     for (const pf of puffs) {
       const a = (time - pf.born) / pf.life;

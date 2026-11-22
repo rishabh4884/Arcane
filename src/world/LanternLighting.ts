@@ -10,23 +10,23 @@ export function createLanternUniform(): LanternUniform {
 }
 
 /**
- * Two short-lived world lights (a lightning strike and its bolt) that every illustrated surface,
+ * Four short-lived world lights (travelling magic and impact flashes) that every illustrated surface,
  * grass blade, fog bank and creature responds to. Most of the forest is unlit artwork, so real
  * three.js lights cannot brighten it; this shared uniform can.
  *   uSpellLights[i]: xyz position, w intensity   uSpellColors[i]: rgb colour, w radius
  */
-export const SPELL_LIGHT_COUNT = 2;
+export const SPELL_LIGHT_COUNT = 4;
 export const SPELL_LIGHTS = {
   uSpellLights: { value: Array.from({ length: SPELL_LIGHT_COUNT }, () => new THREE.Vector4()) },
   uSpellColors: { value: Array.from({ length: SPELL_LIGHT_COUNT }, () => new THREE.Vector4(1, 1, 1, 1)) },
 };
 
 export const SPELL_LIGHT_GLSL = `
-  uniform vec4 uSpellLights[2];
-  uniform vec4 uSpellColors[2];
+  uniform vec4 uSpellLights[${SPELL_LIGHT_COUNT}];
+  uniform vec4 uSpellColors[${SPELL_LIGHT_COUNT}];
   vec3 spellIllumination(vec3 surface) {
     vec3 light = vec3(0.0);
-    for (int i = 0; i < 2; i++) {
+    for (int i = 0; i < ${SPELL_LIGHT_COUNT}; i++) {
       vec4 l = uSpellLights[i];
       if (l.w <= 0.0) continue;
       float reach = 1.0 - smoothstep(0.0, max(uSpellColors[i].w, 0.001), length(surface - l.xyz));

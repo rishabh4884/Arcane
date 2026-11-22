@@ -9,6 +9,7 @@ import type { World } from '../world/World.ts';
 import { DESIGNS } from '../world/characters/index.ts';
 import { lanternFlower } from '../cutscene/cast.ts';
 import { createCreatureProjectile, animateCreatureProjectile, type ProjectileStyle } from '../world/fx/creatureProjectiles.ts';
+import { CREATURE_SPECS, type CreatureKind } from '../world/EncounterState.ts';
 
 /** Development-only camera and effect frame desk. No webcam or saved progress is involved.
  * /?review&scene=ending&t=35, or /?review&effect=frost&t=0.6
@@ -63,7 +64,18 @@ export async function artReview(world: World): Promise<void> {
   });
   const play = document.createElement('button'); play.type = 'button'; play.textContent = 'Play';
   play.addEventListener('click', () => { playing = !playing; play.textContent = playing ? 'Pause' : 'Play'; });
-  panel.append(select, play, time, label, status, hide);
+  const angle = document.createElement('select'); angle.setAttribute('aria-label', 'Figure angle');
+  for (const [name,value] of [['Front','0'],['Three-quarter','0.65'],['Side','1.57'],['Back','3.14']]) angle.append(new Option(name,value));
+  angle.value = params.get('yaw') ?? '0.65';
+  const action = document.createElement('select'); action.setAttribute('aria-label', 'Figure action');
+  const cast = document.createElement('button'); cast.type = 'button'; cast.textContent = 'Cast in world';
+  cast.addEventListener('click', () => {
+    const [kind,id] = select.value.split(':'); if (kind !== 'effect') return;
+    playing = false; play.textContent = 'Play'; if (effect) effect.group.visible = false;
+    const spell = SPELLS.find((s)=>s.effect===id)!;
+    world.previewEffect(spell.effect, new THREE.Vector3(0,terrainHeight(0,5)+1,5),spell.color);
+  });
+  panel.append(select, angle, action, play, cast, time, label, status, hide);
   document.body.append(panel);
 
   const clear = () => { effect?.group.removeFromParent(); effect?.dispose(); effect = null; };
@@ -85,10 +97,14 @@ export async function artReview(world: World): Promise<void> {
     } else if (kind === 'figure') {
       const a = shot.actors.get('review')!;
       const cycle = at % 4;
-      a.input.pose = cycle < 1.2 ? 'windup' : cycle < 1.8 ? 'strike' : cycle < 2.8 ? 'recover' : 'idle';
+      a.input.pose = action.value === 'idle' ? 'idle' : cycle < 1.2 ? 'windup' : cycle < 1.8 ? 'strike' : cycle < 2.8 ? 'recover' : 'idle';
       a.input.progress = cycle < 1.2 ? cycle / 1.2 : cycle < 1.8 ? (cycle - 1.2) / 0.6 : cycle < 2.8 ? cycle - 1.8 : 0;
-      a.input.attack = params.get('attack') ?? (id === 'stag' ? 'charge' : '');
-      shot.update(Math.max(1 / 60, Math.min(0.05, at - simulated))); simulated = at;
+      a.input.attack = action.value;
+      a.figure.setYaw(Number(angle.value)); a.input.faceYaw = Number(angle.value);
+      // A held pose gets time for the rig springs to settle; Play advances in real time.
+      const steps = playing ? 1 : 30;
+      for (let i=0;i<steps;i++) shot.update(1 / 60);
+      simulated = at;
     } else if (kind === 'prop') {
       flower?.set(Math.min(1, at / 3), Math.min(1, at / 3), at);
     } else if (kind === 'projectile') {
@@ -116,6 +132,7 @@ export async function artReview(world: World): Promise<void> {
     world.releasePaintedShots();
     const [kind, id] = select.value.split(':');
     mode = select.value;
+    angle.hidden = action.hidden = kind !== 'figure'; cast.hidden = kind !== 'effect';
     status.textContent = 'Loading paintings…'; time.disabled = true;
     if (kind === 'scene' || kind === 'full') {
       const script = SCRIPTS[id];
@@ -133,7 +150,10 @@ export async function artReview(world: World): Promise<void> {
       if (kind === 'figure') {
         const design = DESIGNS[id as keyof typeof DESIGNS];
         const figure = shot.actor('review', design, 0, 5, Number(params.get('yaw') ?? 0.65), 0, 0.37);
-        const ground = figure.group.position.y, distance = Math.max(3, design.height * 1.7);
+        action.replaceChildren(new Option('Idle','idle'));
+        for (const attack of CREATURE_SPECS[id as CreatureKind].attacks) action.append(new Option(attack.id,attack.id));
+        action.value = params.get('attack') ?? 'idle';
+        const ground = figure.group.position.y, distance = Math.max(3, design.height * 2.25);
         stage.camera.position.set(0, ground + design.height * 0.6, 5 + distance);
         stage.camera.lookAt(0, ground + design.height * 0.48, 5); stage.camera.fov = 42;
         time.max = '12';
@@ -152,6 +172,7 @@ export async function artReview(world: World): Promise<void> {
     draw();
   };
   select.addEventListener('change', () => { void choose(); });
+  angle.addEventListener('change', draw); action.addEventListener('change', draw);
   time.addEventListener('input', () => { if (select.value === mode) draw(); });
   const requested = params.has('effect') ? `effect:${params.get('effect')}` : params.has('figure') ? `figure:${params.get('figure')}` : params.has('prop') ? `prop:${params.get('prop')}` : params.has('projectile') ? `projectile:${params.get('projectile')}` : `${params.has('full') ? 'full' : 'scene'}:${params.get('scene') ?? 'intro'}`;
   if (Array.from(select.options).some((option) => option.value === requested)) select.value = requested;
