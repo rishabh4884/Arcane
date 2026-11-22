@@ -23,7 +23,8 @@ import { SPELL_LIGHTS, SPELL_LIGHT_COUNT } from './LanternLighting.ts';
 import type { LevelDef, Mood } from '../game/campaign.ts';
 import type { EncounterSnapshot } from './Encounter.ts';
 import { lerpMood, MOODS, moodState, type MoodState } from './moods.ts';
-import { namedRegion, regionFor, Regions } from './regions.ts';
+import { namedRegion, regionFor, Regions, INK_LIGHT, paintedAir } from './regions.ts';
+import { FIGURE_LIGHT } from './rig/figureMaterial.ts';
 import type { ParticleSystem as Particles } from './particles.ts';
 import { DESIGNS } from './characters/index.ts';
 import { prepareBodies } from './rig/bakery.ts';
@@ -175,6 +176,11 @@ export class World {
   private readonly moodFrom: MoodState = moodState(MOODS.edge);
   private readonly moodTo: MoodState = moodState(MOODS.edge);
   private readonly moodNow: MoodState = moodState(MOODS.edge);
+  private readonly inkUniforms = [INK.uLitColor, INK.uMidColor, INK.uShadeColor, INK.uRimColor, FIGURE_LIGHT.uAir];
+  private readonly inkFrom = this.inkUniforms.map((u) => u.value.clone());
+  private readonly inkTo = this.inkUniforms.map((u) => u.value.clone());
+  private daylightFrom = 0;
+  private daylightTo = 0;
   private moodT = 1;
   private moodSeconds = 1;
   private darkLevel = 0;
@@ -405,6 +411,10 @@ export class World {
   }
 
   setMood(mood: Mood, seconds = 2): void {
+    const colors = [...INK_LIGHT[mood], paintedAir(mood)];
+    this.inkUniforms.forEach((u, i) => { this.inkFrom[i].copy(u.value); this.inkTo[i].set(colors[i]); });
+    this.daylightFrom = INK.uDaylight.value;
+    this.daylightTo = mood === 'dawn' ? 1 : 0;
     this.moodFrom.fog.copy(this.moodNow.fog); this.moodFrom.sky.copy(this.moodNow.sky); this.moodFrom.density = this.moodNow.density;
     this.moodFrom.tint.copy(this.moodNow.tint); this.moodFrom.lift.copy(this.moodNow.lift); this.moodFrom.saturation = this.moodNow.saturation;
     this.moodFrom.exposure = this.moodNow.exposure; this.moodFrom.vignette = this.moodNow.vignette;
@@ -806,6 +816,8 @@ export class World {
     this.moodT = Math.min(1, this.moodT + dt / this.moodSeconds);
     const t = this.moodT * this.moodT * (3 - 2 * this.moodT);
     const m = lerpMood(this.moodNow, this.moodFrom, this.moodTo, t);
+    this.inkUniforms.forEach((u, i) => u.value.copy(this.inkFrom[i]).lerp(this.inkTo[i], t));
+    INK.uDaylight.value = THREE.MathUtils.lerp(this.daylightFrom, this.daylightTo, t);
     const fog = this.scene.fog as THREE.FogExp2 | null;
     if (fog) { fog.color.copy(m.fog); fog.density = m.density; }
     if (this.scene.background instanceof THREE.Color) this.scene.background.copy(m.sky);

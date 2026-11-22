@@ -124,13 +124,17 @@ function placeInstances(mesh: THREE.InstancedMesh, points: THREE.Vector3[], rng:
 /* ─────────────────────────────── the region set ─────────────────────────────── */
 
 /** The drawn figures' light in each region: lit, mid, shade, rim. */
-const INK_LIGHT: Record<RegionKey, [string, string, string, string]> = {
+export const INK_LIGHT: Record<RegionKey, [string, string, string, string]> = {
   edge: ['#f2dcc0', '#a9a6b2', '#4f5d7a', '#d6e6f2'],
   fen: ['#e6dcb4', '#a3a898', '#46584e', '#c8e6d4'],
   deeps: ['#c9b896', '#7c8296', '#2c3448', '#a4c8e0'],
   throne: ['#e6e0d8', '#a4a2aa', '#4a4a58', '#dce0ea'],
   dawn: ['#fff0d4', '#d2c6aa', '#7a8a7c', '#fff2c8'],
 };
+
+export function paintedAir(key: RegionKey): string {
+  return key === 'edge' && PAINTED_WORLD ? '#3e5a56' : LOOKS[key].light.uAir!;
+}
 
 const MIST_TINTS: Record<RegionKey, string> = { edge: '#ffffff', fen: '#f2fff0', deeps: '#6f8a94', throne: '#e8e4f0', dawn: '#ffe6c4' };
 
@@ -172,6 +176,7 @@ export class Regions {
     // Figures and props are drawn in the region's light.
     const ink = INK_LIGHT[spec.key];
     INK.uLitColor.value.set(ink[0]); INK.uMidColor.value.set(ink[1]); INK.uShadeColor.value.set(ink[2]); INK.uRimColor.value.set(ink[3]);
+    INK.uDaylight.value = spec.key === 'dawn' ? 1 : 0;
     if (spec.set) this.set(spec.set, rng);
     if (DRAWN_LOOK) drawn(this.group);
   }
@@ -461,6 +466,7 @@ export class Regions {
     this.merged(stones, std('#7d7b77', { flat: true }));
     // Ash falls without end.
     this.emitter(40, (r) => {
+      if (r() < INK.uDaylight.value) return;
       const x = (r() - 0.5) * 44, z = -26 + r() * 40;
       this.mist.emit({ x, y: terrainHeight(x, z) + 6 + r() * 6, z, vx: 0.25 + (r() - 0.5) * 0.2, vy: -0.4, vz: 0.05, color: new THREE.Color('#e2dfd8'), size: 0.16, sizeEnd: 0.12, alpha: 0.9, ttl: 16, drag: 0.04, style: 'mist' });
     });

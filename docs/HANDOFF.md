@@ -1,5 +1,41 @@
 # Arcane — handoff for the next agent
 
+## Continuation checkpoint — 2026-11-22
+
+The owner has explicitly authorized substantial remodeling, animation, sound and art direction.
+The acceptance target is a living, playable 2D animated episode. Preserve the mature woodland
+identity, readable combat and owner-only commits; do not treat the older “don't redesign” guidance
+below as a restriction. The owner confirms that the character noise is now gone: **preserve that fix**.
+
+Completed since the original handoff:
+
+- All 59 planned cutscene paintings are shipped. Interrupted art builds resume safely.
+- Frostbind is drawn as growing crystal branches and brittle frost plates. Enemy missiles now have
+  distinct silhouettes and articulation (moths, lantern cages, antler splinters, bell echoes, sap,
+  broken stars), with distinct synthesis scores. Damage and flight timing are unchanged.
+- Flowers have closed, cupped petals, stems and leaves; opening colour/emission survives material
+  conversion. The Stag has a closed draped hide with independent hanging sides and new attack beats.
+  **Visual follow-up remains:** strengthen hide folds and review the entire cast in motion.
+- Noise sources removed: drawn-mode post grain/sharpening and time-reseeded outline pressure. Do not
+  restore them. Procedural luminous eyes and captive lights now retain emission.
+- Forest trees, rocks and architecture carry surface paint, not camera-projected whole-scene colour.
+  Connected boughs support crowns; decimation flakes/duplicates are removed; all 12 tree LOD meshes
+  pass closed-shell checks. Paint uses the cast's light/air; dawn transitions that light too.
+- The sky no longer contains duplicate projected foreground trees. Ground projection uses two-sided
+  depth agreement and filtered packed depth (nearest sampling caused visible terrace stripes).
+- Editable forest source: `art/source/sets/edge.blend`, rebuilt by
+  `Blender -b --factory-startup -P art/set_build.py -- edge --proxies-only`.
+- Development review: `/?review&scene=ending&t=35`; subject selector includes backgrounds, full
+  scenes, figures, flowers and enemy attacks; Play and the timeline allow motion checks.
+
+Validation at this checkpoint: 314 TypeScript tests, 7 Python art tests, production build. Browser
+review confirms the dark tree wedges and ground terrace bands are gone at ending t=35; character
+noise is also confirmed fixed by the owner. Browser access is available again. This is **not** a
+claim that the full cast/acting/spell art pass is finished. Next: spell light on painted surfaces,
+multi-angle character/attack review, stronger selective modeling and cutscene performance.
+
+---
+
 Written 2026-11-21 when the owner's Claude subscription ended mid-project. Read this first, then
 [PAINTED_SETS.md](PAINTED_SETS.md) (how the look is made) and [ART_BIBLE.md](ART_BIBLE.md) (the design
 brief). The git log is the detailed record; the last 25 commits are listed at the end.

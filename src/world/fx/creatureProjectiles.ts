@@ -16,6 +16,7 @@ function inked(shape: THREE.Shape, color: THREE.ColorRepresentation, name: strin
   ink.scale.set(1.09, 1.06, 1); ink.position.z = -0.006;
   const paint = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({color, side:THREE.DoubleSide}));
   paint.position.z = 0.006;
+  ink.userData.keepLit = true; paint.userData.keepLit = true;
   g.add(ink, paint); return g;
 }
 

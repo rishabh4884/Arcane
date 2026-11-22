@@ -21,6 +21,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import bpy  # noqa: E402
+import bmesh  # noqa: E402
 import numpy as np  # noqa: E402
 
 from arcane_art import bl, setscene  # noqa: E402
@@ -75,22 +76,68 @@ def compose(layout: dict, width: int, height: int) -> dict:
 
 
 def export_proxies(path: str, scene: dict) -> None:
-    """Simplified kinds (trees and the stone, at the origin) and the statics (gate, lanterns) where they
-    stand, for the game to project the painting onto."""
+    """Surface-painted trees and stones, plus the set's static pieces.
+
+    Their paint belongs to the mesh, including the backs a shot never saw. Keep enough topology for
+    branch junctions and crown silhouettes; the old 2600-face unpainted proxies tore the projection.
+    """
     objs = []
     for kind, proto in scene['protos'].items():
         proto.name = f'proto-{kind}'          # free the kind's own name for the proxy
-        p = bl.duplicate(proto, kind)
-        assert p.name == kind, p.name
-        p.hide_render = False; p.hide_viewport = False
-        bl.decimate(p, 2600 if kind != 'rock_edge_a' else 600)
-        p.location = (0, 0, 0); p.rotation_euler = (0, 0, 0); p.scale = (1, 1, 1)
-        objs.append(p)
+        levels = [14000, 4500, 1400] if kind != 'rock_edge_a' else [1800]
+        for lod, faces in enumerate(levels):
+            name = kind if lod == 0 else f'{kind}-lod{lod}'
+            p = bl.duplicate(proto, name)
+            assert p.name == name, p.name
+            p.hide_render = False; p.hide_viewport = False
+            bl.decimate(p, faces)
+            # Quadric collapse can leave duplicate triangles at narrow SDF junctions. Remove these
+            # before export; they otherwise z-fight and make the bark sparkle through camera motion.
+            p.data.validate(clean_customdata=False)
+            bm = bmesh.new()
+            bm.from_mesh(p.data)
+            # Tiny disconnected SDF remnants are floating flakes, not designed bark. A lone
+            # triangle cannot be capped without recreating the duplicate we just removed.
+            visited = set()
+            flakes = []
+            for face in bm.faces:
+                if face in visited:
+                    continue
+                stack, component = [face], []
+                while stack:
+                    f = stack.pop()
+                    if f in visited:
+                        continue
+                    visited.add(f); component.append(f)
+                    stack.extend(n for e in f.edges for n in e.link_faces if n not in visited)
+                if len(component) <= 8:
+                    flakes.extend(component)
+            if flakes:
+                bmesh.ops.delete(bm, geom=flakes, context='FACES')
+            boundary = [e for e in bm.edges if e.is_boundary]
+            if boundary:
+                bmesh.ops.holes_fill(bm, edges=boundary, sides=16)
+            bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+            bm.to_mesh(p.data)
+            bm.free()
+            p.data.update()
+            p.location = (0, 0, 0); p.rotation_euler = (0, 0, 0); p.scale = (1, 1, 1)
+            objs.append(p)
     for s in scene['statics']:
         p = bl.duplicate(s, f'static-{s.name}')
         objs.append(p)
+    material = bpy.data.materials.new('Surface paint carrier')
+    material.diffuse_color = (1, 1, 1, 1)
+    material.use_nodes = True
     for o in objs:
+        colors = bl.get_vertex_colors(o, 'albedo')
+        # Leaf membership travels in colour alpha, used as a material selector, never transparency.
+        colors[:, 3] = bl.get_vertex_colors(o, 'leaf')[:, 0] if 'leaf' in o.data.color_attributes else 0
+        bl.set_vertex_colors(o, 'albedo', colors)
+        o.data.color_attributes.active_color = o.data.color_attributes['albedo']
+        o.data.color_attributes.render_color_index = o.data.color_attributes.find('albedo')
         o.data.materials.clear()
+        o.data.materials.append(material)
     for o in bpy.context.view_layer.objects:
         o.select_set(False)
     for o in objs:
@@ -98,7 +145,15 @@ def export_proxies(path: str, scene: dict) -> None:
     bpy.context.view_layer.objects.active = objs[0]
     os.makedirs(os.path.dirname(path), exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_yup=True, export_apply=True,
-                              export_materials='NONE', export_vertex_color='NONE', export_normals=True, export_texcoords=False)
+                              export_materials='EXPORT', export_vertex_color='NAME', export_vertex_color_name='albedo',
+                              export_all_vertex_colors=False, export_active_vertex_color_when_no_material=True,
+                              export_normals=True, export_texcoords=False)
+    # Retain an editable lit stage, not only a transient cache and flattened game export.
+    for o in objs:
+        bpy.data.objects.remove(o, do_unlink=True)
+    source = os.path.join(ROOT, 'art', 'source', 'sets', 'edge.blend')
+    os.makedirs(os.path.dirname(source), exist_ok=True)
+    bpy.ops.wm.save_as_mainfile(filepath=source, compress=True)
 
 
 def render_shot(shot: dict, build: str, public: str, scale: float, moon) -> None:

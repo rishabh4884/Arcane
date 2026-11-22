@@ -32,3 +32,5 @@ pnpm-debug.log*
 # Art pipeline intermediates
 art/build/
 __pycache__/
+*.blend1
+*.blend2

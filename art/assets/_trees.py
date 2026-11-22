@@ -92,6 +92,20 @@ def build(d: TreeDesign) -> AssetSpec:
         s.limb([base, stub], radii=[(0, d.top * 0.9, d.top * 0.8), (1, d.top * 0.6, d.top * 0.55)], up=(0, 1, 0), attr=bark, k=d.top * 0.5, relief=d.plates)
         s.carve_plane(stub - dv * 0.05, dv + np.array([0, 0.4, 0]), Ellipsoid(stub, (0.4, 0.4, 0.4)), k=0.01)
         s.displace(Relief(0.04, 9.0, 1.0, 'cracks', 41), bound=Ellipsoid(stub, (0.3, 0.3, 0.3)))
+    # A crown must grow from a bough. Several old side masses hovered above the designed limbs;
+    # grow load-bearing forks into their undersides, with collars that merge into the trunk.
+    for ci, (centre, radii) in enumerate(d.crown):
+        end = np.asarray(centre, float)
+        lateral = np.linalg.norm(end[[0, 2]])
+        if lateral < 0.75:
+            continue
+        y0 = min(d.height * 0.82, end[1] - radii[1] * 1.35)
+        t = y0 / d.height
+        start = np.array([d.lean[0] * t * t, y0, d.lean[1] * t * t])
+        bend = start + (end - start) * np.array([0.56, 0.36, 0.56])
+        radius = min(d.base * 0.27, 0.09 + lateral * 0.035)
+        s.limb([start, bend, end], radii=[(0, radius, radius * 1.15), (0.45, radius * 0.75, radius * 0.8), (1, 0.035, 0.035)],
+               up=(0, 1, 0), attr=bark, k=radius * 0.9, relief=d.plates)
     if d.hollow is not None:
         s.sub(Ellipsoid(d.hollow, (d.base * 0.24, d.base * 0.4, d.base * 0.3)), k=0.05)
     s.displace(Relief(0.006, 9.0, 0.3, 'ridged', 21))
@@ -99,8 +113,15 @@ def build(d: TreeDesign) -> AssetSpec:
     if d.crown:
         crown = Sculpt('crown')
         leaf = Attr('leaf', hexcol(d.leaf), 'leaf')
-        for c, r in d.crown:
-            crown.ellipsoid(c, r, leaf, k=min(r) * 0.35, relief=Relief(min(r) * 0.11, 1.4 / max(min(r), 0.4), 1.0, 'cells', int(c[1] * 13)))
+        for ci, (c, r) in enumerate(d.crown):
+            crown.ellipsoid(c, r, leaf, k=min(r) * 0.48, relief=Relief(min(r) * 0.11, 1.4 / max(min(r), 0.4), 1.0, 'cells', int(c[1] * 13)))
+            # Uneven shelves of leaf clusters break the balloon outline. Each overlaps its parent
+            # mass generously; they read as a branching canopy rather than glued-on balls.
+            for j in range(4):
+                a = j * np.pi * 0.5 + ci * 1.7 + d.seed * 0.13
+                cc = np.array(c) + np.array([np.cos(a) * r[0] * 0.73, (-0.24 + j * 0.1) * r[1], np.sin(a) * r[2] * 0.73])
+                rr = np.array(r) * np.array([0.48, 0.29 + (j % 2) * 0.07, 0.46])
+                crown.ellipsoid(cc, rr, leaf, k=min(rr) * 0.6)
         # The edge breaks into clusters: deeper cells, then fine leafiness.
         crown.displace(Relief(0.12, 1.1, 1.0, 'cells', 7))
         crown.displace(Relief(0.04, 4.5, 1.0, 'cells', 13))

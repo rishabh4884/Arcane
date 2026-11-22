@@ -4,22 +4,24 @@ import { SPELL_LIGHT_GLSL, SPELL_LIGHTS } from './LanternLighting.ts';
 import { type PaintCamera, viewLogScore } from './paintedShots.ts';
 import { forestLayout } from './spatial.ts';
 import { groundData, rockPlacements, treePlacements } from './woodlandLayout.ts';
+import { forestPaint } from './render/ForestPaint.ts';
+import { INK } from './render/InkPaint.ts';
+import { FIGURE_LIGHT } from './rig/figureMaterial.ts';
 
 /**
  * THE PAINTED SET
  * ───────────────
  * A place painted the way an animated series paints its backgrounds — composed through a camera and
  * repainted stroke by stroke (art/set_build.py, art/set_paint.py) — and stood up in the game by
- * projecting the painting from the camera it was painted from onto simple stand-ins for the ground, the
- * trunks, the stones, the gate and the lanterns. From that camera the wood looks exactly like the
- * painting; creatures walk on the painted ground and pass behind painted trunks because those trunks
- * have depth; a shake of the camera keeps the parallax true.
+ * projecting the painting onto the ground. Trees, stones and architecture carry their own
+ * surface paint: every side remains drawn when the camera travels beyond a painting's viewpoint.
+ * Creatures pass behind solid trunks, whose branches and crowns remain joined through a turn.
  *
  * Like a series, the set has a painting for every shot: the gameplay view's, and one for each cutscene
  * camera key that strays from it. Two paintings are projected at once; each frame the two that best
  * serve the camera are chosen and weighed, and each surface takes them in proportion to how well each
- * saw it, so a camera moving from one key to the next passes from one painting into the next. Surfaces
- * no painting saw fall back to a plain painted tone, and the sky beyond every frame is the live sky.
+ * saw it, so a camera moving from one key to the next passes from one painting into the next. Ground
+ * no painting saw keeps its terrain paint, and the sky beyond every frame is the live sky.
  */
 
 interface SetMeta { position: [number, number, number]; lookAt: [number, number, number]; fov: number; aspect: number; near: number; far: number; width: number; height: number; depthMax: number; script?: string }
@@ -44,13 +46,15 @@ function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color
   return new THREE.ShaderMaterial({
     defines: { SKY: surface === 'sky' ? 1 : 0, SWAY: surface === 'tree' ? 1 : 0 },
     side: surface === 'sky' ? THREE.BackSide : THREE.FrontSide,
-    depthWrite: surface !== 'sky',
-    uniforms: { ...slots, uFallback: { value: fallback }, uTint: tint, uTime: time, ...SPELL_LIGHTS },
+    depthWrite: surface !== 'sky', vertexColors: true,
+    uniforms: { ...slots, uFallback: { value: fallback }, uTint: tint, uTime: time, ...SPELL_LIGHTS, ...INK, uAir: FIGURE_LIGHT.uAir },
     vertexShader: /* glsl */`
       uniform float uTime;
       varying vec3 vRestWorld;
       varying vec3 vNormalW;
+      varying vec3 vColor;
       void main() {
+        vColor = color.rgb;
         vec4 local = vec4(position, 1.0);
         vec3 n = normal;
         #ifdef USE_INSTANCING
@@ -74,6 +78,8 @@ function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color
       uniform float uMix; uniform float uDepthMax; uniform vec3 uFallback; uniform vec3 uTint; uniform float uTime;
       varying vec3 vRestWorld;
       varying vec3 vNormalW;
+      varying vec3 vColor;
+      uniform vec3 uFillDir; uniform vec3 uMidColor; uniform vec3 uLitColor; uniform vec3 uShadeColor; uniform vec3 uAir;
       ${SPELL_LIGHT_GLSL}
       float psHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float psNoise(vec2 p) {
@@ -92,13 +98,19 @@ function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color
         vec2 uv = clip.xy / clip.w * 0.5 + 0.5;
         vec2 inner = min(uv, 1.0 - uv);
         seen = clip.w > 0.0 ? smoothstep(0.0, 0.02, min(inner.x, inner.y)) : 0.0;
-        #if !SKY
-          if (seen > 0.0) {
-            vec2 dRG = texture2D(tDepth, uv).rg;
-            float painted = (dRG.r * 255.0 * 256.0 + dRG.g * 255.0) / 65535.0 * uDepthMax;
-            seen *= step(distance(vRestWorld, cam), painted * 1.03 + 0.35);
-          }
-        #endif
+        if (seen > 0.0) {
+          vec2 dRG = texture2D(tDepth, uv).rg;
+          float painted = (dRG.r * 255.0 * 256.0 + dRG.g * 255.0) / 65535.0 * uDepthMax;
+          #if SKY
+            // A whole-scene painting must never paste its foreground trees onto the sky dome.
+            seen *= step(uDepthMax - 0.1, painted);
+          #else
+            // Agreement is two-sided: a nearer floor cannot borrow a distant trunk or sky pixel.
+            float error = abs(distance(vRestWorld, cam) - painted);
+            float tolerance = max(0.12, painted * 0.004);
+            seen *= 1.0 - smoothstep(tolerance, tolerance * 2.0, error);
+          #endif
+        }
         return texture2D(tPaint, uv).rgb;
       }
       void main() {
@@ -112,9 +124,12 @@ function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color
           if (w < 0.002) discard;
           vec3 col = (a * wA + b * wB) / w * uTint;
         #else
-          float shade = 0.6 + 0.4 * max(vNormalW.y, 0.0);
-          vec3 painted = w > 0.0 ? (a * wA + b * wB) / max(w, 1e-4) : uFallback;
-          vec3 col = mix(uFallback * shade, painted, clamp(w * 8.0, 0.0, 1.0)) * uTint * cloudShade(vRestWorld);
+          float light = dot(normalize(vNormalW), uFillDir) * 0.5 + 0.5;
+          vec3 local = vColor * mix(uShadeColor, mix(uMidColor, uLitColor, smoothstep(0.72, 0.82, light)), smoothstep(0.4, 0.5, light));
+          float air = (1.0 - exp(-max(length(vRestWorld - cameraPosition) - 8.0, 0.0) / 62.0)) * 0.92;
+          local = mix(local, uAir, min(air, 0.88));
+          vec3 painted = w > 0.0 ? (a * wA + b * wB) / max(w, 1e-4) : local;
+          vec3 col = mix(local, painted, clamp(w * 8.0, 0.0, 1.0)) * uTint * cloudShade(vRestWorld);
           col += col * spellIllumination(vRestWorld) * 1.2;
         #endif
         gl_FragColor = vec4(col, 1.0);
@@ -140,7 +155,9 @@ async function loadPainting(dir: string, name: string): Promise<Painting> {
   paint.colorSpace = THREE.SRGBColorSpace;
   paint.anisotropy = 8;
   depth.colorSpace = THREE.NoColorSpace;
-  depth.minFilter = THREE.NearestFilter; depth.magFilter = THREE.NearestFilter; depth.generateMipmaps = false;
+  // The packed R/G value is an affine encoding, so filtering then decoding is still linear depth.
+  // Nearest sampling on a receding floor made every texel a different visibility terrace.
+  depth.minFilter = THREE.LinearFilter; depth.magFilter = THREE.LinearFilter; depth.generateMipmaps = false;
   const cam = new THREE.PerspectiveCamera(meta.fov, meta.aspect, meta.near, meta.far);
   cam.position.fromArray(meta.position);
   cam.lookAt(new THREE.Vector3().fromArray(meta.lookAt));
@@ -207,6 +224,7 @@ export class PaintedSet {
     const gd = groundData(sites);
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(gd.positions, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(gd.colors, 3));
     g.setIndex(new THREE.BufferAttribute(gd.index, 1));
     g.computeVertexNormals();
     this.geometries.push(g);
@@ -216,17 +234,28 @@ export class PaintedSet {
     // Trunks and stones: the painting's stand-ins, where the layout put them.
     const kinds = new Map<string, THREE.BufferGeometry>();
     const statics: THREE.Mesh[] = [];
+    const carriers = new Set<THREE.Material>();
     proxies.updateMatrixWorld(true);
     proxies.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh) return;
+      (Array.isArray(m.material) ? m.material : [m.material]).forEach((material) => carriers.add(material));
       this.geometries.push(m.geometry);
       if (m.name.startsWith('static-')) statics.push(m); else kinds.set(m.name, m.geometry);
     });
+    for (const material of carriers) material.dispose();
     const dummy = new THREE.Object3D();
     const byKind = new Map<string, ReturnType<typeof treePlacements>>();
-    for (const t of treePlacements(sites)) { if (!byKind.has(t.kind)) byKind.set(t.kind, []); byKind.get(t.kind)!.push(t); }
-    const treeMaterial = make('tree', '#181c18');
+    for (const t of treePlacements(sites)) {
+      const kind = t.lod === 0 ? t.kind : `${t.kind}-lod${t.lod}`;
+      const key = kinds.has(kind) ? kind : t.kind;
+      if (!byKind.has(key)) byKind.set(key, []);
+      byKind.get(key)!.push(t);
+    }
+    const treeMaterial = forestPaint(this.time, this.tint);
+    const stoneMaterial = forestPaint(this.time, this.tint, false);
+    const glowMaterial = forestPaint(this.time, this.tint, false, true);
+    this.materials.push(treeMaterial, stoneMaterial, glowMaterial);
     for (const [kind, list] of byKind) {
       const geo = kinds.get(kind);
       if (!geo) { console.warn(`[arcane] painted set has no stand-in for ${kind}; its trees will not hide what passes behind them`); continue; }
@@ -239,29 +268,21 @@ export class PaintedSet {
     const rockGeo = kinds.get('rock_edge_a');
     if (rockGeo) {
       const rocks = rockPlacements(sites);
-      const inst = new THREE.InstancedMesh(rockGeo, make('rock', '#2a2b26'), rocks.length);
+      const inst = new THREE.InstancedMesh(rockGeo, stoneMaterial, rocks.length);
       rocks.forEach((r, i) => { dummy.position.set(r.x, r.y, r.z); dummy.rotation.set(...r.rotation); dummy.scale.set(...r.scale); dummy.updateMatrix(); inst.setMatrixAt(i, dummy.matrix); });
       inst.computeBoundingSphere();
       inst.name = 'Painted stones';
       this.group.add(inst);
     }
     // The gate and the lanterns stand where they were painted.
-    const staticMaterial = make('rock', '#1c1f1b');
     for (const m of statics) {
-      const placed = new THREE.Mesh(m.geometry, staticMaterial);
+      const placed = new THREE.Mesh(m.geometry, m.name.includes('glass') ? glowMaterial : stoneMaterial);
       placed.applyMatrix4(m.matrixWorld);
       placed.name = `Painted ${m.name.slice(7)}`;
       this.group.add(placed);
     }
-    // The sky: a dome the paintings' sky lands on, in front of the live sky.
-    const domeGeo = new THREE.SphereGeometry(200, 48, 24);
-    this.geometries.push(domeGeo);
-    const sky = new THREE.Mesh(domeGeo, make('sky', '#5e7b7a'));
-    sky.position.copy(this.gameplay.eye);
-    sky.renderOrder = -9;
-    sky.frustumCulled = false;
-    sky.name = 'Painted sky';
-    this.group.add(sky);
+    // The living sky is directional and shares the region's light. Projecting a whole-scene image
+    // onto a dome duplicated foreground trunks in the gaps whenever the camera left its keyframe.
   }
 
   private assign(a: Painting, b: Painting, mix: number): void {

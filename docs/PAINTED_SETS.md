@@ -14,8 +14,8 @@ drawings, not lit as 3D:
 
 - **Paint:** three flat bands (lit, mid, shade) with brush-broken edges, cool shadow colours, a moon
   rim on the edge facing the moon, crease ink in the folds (`src/world/render/InkPaint.ts`).
-- **Line:** an outline of constant on-screen weight that thins with distance and boils from drawing to
-  drawing, plus a screen-space pass that inks folds and overlaps inside the silhouette
+- **Line:** an outline of constant on-screen weight that thins with distance; its pressure variation
+  stays attached to the contour. A screen-space pass inks folds and overlaps inside the silhouette
   (`src/world/render/InkEdgePass.ts`).
 - **Timing:** figures move on twos (12 drawings a second); strikes and hits go to ones.
 - **Air:** in a painted set, figures take the painting's own aerial haze, so a creature at forty metres
@@ -24,10 +24,20 @@ drawings, not lit as 3D:
   edges bend with one broad brush pattern, colour and occlusion are read broad so the sculpt's grain
   never speckles the shadows, only the deepest creases are inked, the warm turn between light and
   shadow is a soft band rather than a line, the brightest band stays on broad forms (slim fingers,
-  ears and straps read in two tones), the outline boils quietly every other drawing, and inner ink
+  ears and straps read in two tones), the outline remains still in a held drawing, and inner ink
   marks only real folds and overlaps, fading on small distant figures.
 
 ## The sets: painted backgrounds
+
+**Current construction (2026-11-22):** projected whole-scene paintings serve the ground; trees,
+stones, gate and lanterns carry their own surface paint (`render/ForestPaint.ts`). This removes the
+dark missing strips and pasted-on branches exposed by travelling cameras. The directional living
+sky shares the region's light instead of receiving duplicate foreground trees from a painting.
+The forest's 14k/4.5k/1.4k tree LODs keep connected boughs and painted leaf shelves. Export validates
+topology, removes floating decimation flakes, and retains the editable stage at
+`art/source/sets/edge.blend`. The ground's two-sided depth test rejects paint from unrelated surfaces;
+linear sampling of the packed depth avoids terracing on receding soil. These are structural repairs,
+not extra haze or a brighter fallback colour.
 
 A set is painted the way a background painter on a series works, from a layout:
 

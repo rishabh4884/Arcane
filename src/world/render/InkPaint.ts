@@ -35,6 +35,8 @@ export const INK = {
   uLineWeight: { value: 2.4 },
   /** 1 in a painted set: figures take the painting's own aerial haze, so they sit in its air. */
   uPaintedAir: { value: 0 },
+  /** Shared dawn transition for the living sky, surfaces and the cast. */
+  uDaylight: { value: 0 },
 };
 
 export const INK_NOISE = /* glsl */`

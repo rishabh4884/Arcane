@@ -445,6 +445,9 @@ export class Body {
           surf[k * 2 + 1] = o.glow ?? 0;
         }
         const candidateBones = perVertex ? perVertex.bones[i] : o.bonesAt?.(p) ?? o.bones;
+        if (o.bonesAt && (!candidateBones.length || candidateBones.some((b) => !o.bones.includes(b)))) {
+          throw new Error('bonesAt must choose at least one of the part’s declared bones');
+        }
         if (!perVertex && (o.rigid || o.bones.length === 1)) {
           skinIndex[k * 4] = boneIndex.get(o.bones[0])!;
           skinWeight[k * 4] = 1;

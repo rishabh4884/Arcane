@@ -6,6 +6,9 @@ import { createSpellAnimation, type SpellAnimation } from '../world/effects.ts';
 import { lightAt } from '../world/paintedShots.ts';
 import { terrainHeight } from '../world/spatial.ts';
 import type { World } from '../world/World.ts';
+import { DESIGNS } from '../world/characters/index.ts';
+import { lanternFlower } from '../cutscene/cast.ts';
+import { createCreatureProjectile, animateCreatureProjectile, type ProjectileStyle } from '../world/fx/creatureProjectiles.ts';
 
 /** Development-only camera and effect frame desk. No webcam or saved progress is involved.
  * /?review&scene=ending&t=35, or /?review&effect=frost&t=0.6
@@ -15,8 +18,12 @@ export async function artReview(world: World): Promise<void> {
   document.querySelectorAll<HTMLElement>('.g-screen').forEach((screen) => { screen.hidden = true; });
   document.body.className = 'is-cutscene';
   const stage = world.beginCinematic();
-  const shot = new Shot(stage);
+  let shot = new Shot(stage);
   let effect: SpellAnimation | null = null;
+  let flower: ReturnType<typeof lanternFlower> | null = null;
+  let projectile: THREE.Group | null = null;
+  let simulated = 0;
+  let playing = false;
   let request = 0;
   let mode = '';
   const params = new URLSearchParams(location.search);
@@ -31,7 +38,14 @@ export async function artReview(world: World): Promise<void> {
   for (const script of Object.values(SCRIPTS)) sets.append(new Option(script.id, `scene:${script.id}`));
   const spells = document.createElement('optgroup'); spells.label = 'Spell drawings';
   for (const spell of SPELLS) spells.append(new Option(spell.name, `effect:${spell.effect}`));
-  select.append(sets, spells);
+  const scenes = document.createElement('optgroup'); scenes.label = 'Complete cutscenes';
+  for (const script of Object.values(SCRIPTS)) scenes.append(new Option(script.id, `full:${script.id}`));
+  const figures = document.createElement('optgroup'); figures.label = 'Characters in the wood';
+  for (const [key, design] of Object.entries(DESIGNS)) figures.append(new Option(design.name, `figure:${key}`));
+  const props = document.createElement('optgroup'); props.label = 'Living props and attacks';
+  props.append(new Option('Lantern-flower', 'prop:flower'));
+  for (const style of ['ember','bile','boulder','lantern','moth','pale','cold','star','wisp']) props.append(new Option(`${style} attack`, `projectile:${style}`));
+  select.append(sets, scenes, figures, props, spells);
   const time = document.createElement('input');
   time.type = 'range'; time.min = '0'; time.step = '0.01';
   time.setAttribute('aria-label', 'Frame time');
@@ -47,7 +61,9 @@ export async function artReview(world: World): Promise<void> {
       panel.hidden = !panel.hidden; panel.style.display = panel.hidden ? 'none' : 'flex';
     }
   });
-  panel.append(select, time, label, status, hide);
+  const play = document.createElement('button'); play.type = 'button'; play.textContent = 'Play';
+  play.addEventListener('click', () => { playing = !playing; play.textContent = playing ? 'Pause' : 'Play'; });
+  panel.append(select, play, time, label, status, hide);
   document.body.append(panel);
 
   const clear = () => { effect?.group.removeFromParent(); effect?.dispose(); effect = null; };
@@ -55,10 +71,29 @@ export async function artReview(world: World): Promise<void> {
     const at = Number(time.value);
     label.value = `${at.toFixed(2)} s`;
     const [kind, id] = select.value.split(':');
-    if (kind === 'scene') {
+    if (kind === 'scene' || kind === 'full') {
       const script = SCRIPTS[id];
       shot.camera_(script.camera, at);
       stage.setMood(lightAt(script, at) as typeof script.mood, 0.01);
+      if (kind === 'full') {
+        if (at < simulated) { shot.dispose(); shot = new Shot(stage); script.build(shot); simulated = 0; }
+        while (simulated < at) {
+          const dt = Math.min(1 / 30, at - simulated); simulated += dt; shot.t = simulated;
+          script.tick(shot, simulated, dt); shot.update(dt);
+        }
+      }
+    } else if (kind === 'figure') {
+      const a = shot.actors.get('review')!;
+      const cycle = at % 4;
+      a.input.pose = cycle < 1.2 ? 'windup' : cycle < 1.8 ? 'strike' : cycle < 2.8 ? 'recover' : 'idle';
+      a.input.progress = cycle < 1.2 ? cycle / 1.2 : cycle < 1.8 ? (cycle - 1.2) / 0.6 : cycle < 2.8 ? cycle - 1.8 : 0;
+      a.input.attack = params.get('attack') ?? (id === 'stag' ? 'charge' : '');
+      shot.update(Math.max(1 / 60, Math.min(0.05, at - simulated))); simulated = at;
+    } else if (kind === 'prop') {
+      flower?.set(Math.min(1, at / 3), Math.min(1, at / 3), at);
+    } else if (kind === 'projectile') {
+      projectile!.quaternion.copy(stage.camera.quaternion);
+      animateCreatureProjectile(projectile!, id as ProjectileStyle, at);
     } else {
       clear();
       const spell = SPELLS.find((s) => s.effect === id)!;
@@ -77,31 +112,58 @@ export async function artReview(world: World): Promise<void> {
   };
   const choose = async (initial = false) => {
     const ticket = ++request;
-    clear(); world.releasePaintedShots();
+    clear(); shot.dispose(); shot = new Shot(stage); flower = null; projectile = null; simulated = 0;
+    world.releasePaintedShots();
     const [kind, id] = select.value.split(':');
     mode = select.value;
     status.textContent = 'Loading paintings…'; time.disabled = true;
-    if (kind === 'scene') {
+    if (kind === 'scene' || kind === 'full') {
       const script = SCRIPTS[id];
       world.setRegion(script.region ?? 'edge');
       time.max = String(script.duration);
       await world.preparePaintedShots(id);
+      if (ticket !== request) return;
+      if (kind === 'full') script.build(shot);
     } else {
       world.setRegion('edge'); stage.setMood('edge', 0.01);
       stage.camera.position.set(0, terrainHeight(0, 17) + 1.85, 17);
       stage.camera.lookAt(0, 1.2, -12); stage.camera.fov = 64;
       stage.camera.updateProjectionMatrix(); stage.camera.updateMatrixWorld(true);
       time.max = '6';
+      if (kind === 'figure') {
+        const design = DESIGNS[id as keyof typeof DESIGNS];
+        const figure = shot.actor('review', design, 0, 5, Number(params.get('yaw') ?? 0.65), 0, 0.37);
+        const ground = figure.group.position.y, distance = Math.max(3, design.height * 1.7);
+        stage.camera.position.set(0, ground + design.height * 0.6, 5 + distance);
+        stage.camera.lookAt(0, ground + design.height * 0.48, 5); stage.camera.fov = 42;
+        time.max = '12';
+      } else if (kind === 'prop' || kind === 'projectile') {
+        const ground = terrainHeight(0, 5);
+        if (kind === 'prop') { flower = lanternFlower(1); flower.group.position.set(0, ground, 5); shot.add(flower.group); }
+        else { projectile = createCreatureProjectile(id as ProjectileStyle, new THREE.Color('#adc5bb')); projectile.position.set(0, ground + 0.5, 5); shot.add(projectile); }
+        stage.camera.position.set(0, ground + 0.85, 8.2); stage.camera.lookAt(0, ground + 0.6, 5); stage.camera.fov = 36;
+      }
+      stage.camera.updateProjectionMatrix(); stage.camera.updateMatrixWorld(true);
     }
     if (ticket !== request) return;
     time.value = initial ? params.get('t') ?? '0.6' : '0.6';
     time.disabled = false;
-    status.textContent = kind === 'scene' ? 'Background only · H hides controls' : 'Held spell drawing · H hides controls';
+    status.textContent = `${kind === 'scene' ? 'Background only' : 'Animation review'} · H hides controls`;
     draw();
   };
   select.addEventListener('change', () => { void choose(); });
   time.addEventListener('input', () => { if (select.value === mode) draw(); });
-  const requested = params.has('effect') ? `effect:${params.get('effect')}` : `scene:${params.get('scene') ?? 'intro'}`;
+  const requested = params.has('effect') ? `effect:${params.get('effect')}` : params.has('figure') ? `figure:${params.get('figure')}` : params.has('prop') ? `prop:${params.get('prop')}` : params.has('projectile') ? `projectile:${params.get('projectile')}` : `${params.has('full') ? 'full' : 'scene'}:${params.get('scene') ?? 'intro'}`;
   if (Array.from(select.options).some((option) => option.value === requested)) select.value = requested;
   await choose(true);
+  let last = performance.now();
+  const animate = (now: number) => {
+    const dt = Math.min((now - last) / 1000, 0.05); last = now;
+    if (playing && !time.disabled) {
+      const at = Number(time.value) + dt;
+      time.value = String(at > Number(time.max) ? 0 : at); draw();
+    }
+    requestAnimationFrame(animate);
+  };
+  requestAnimationFrame(animate);
 }

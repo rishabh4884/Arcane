@@ -10,6 +10,8 @@ import { forestLayout, intersectObstacle, intersectTerrain, pathX, seededRandom,
 import { Woodland } from './Woodland.ts';
 import { PaintedSet } from './PaintedSet.ts';
 import { gateSite, rockPlacements } from './woodlandLayout.ts';
+import { INK } from './render/InkPaint.ts';
+import { FIGURE_LIGHT } from './rig/figureMaterial.ts';
 
 import { AUTHORED_WORLD, PAINTED_WORLD } from './authored.ts';
 export { AUTHORED_WORLD, PAINTED_WORLD };
@@ -135,9 +137,9 @@ export class ForestEnvironment {
   private makeSky(): THREE.Mesh {
     const material = this.art.material(new THREE.ShaderMaterial({
       side:THREE.BackSide,depthWrite:false,
-      uniforms:{uTime:this.time,uMoon:{value:MOON_DIRECTION.clone()}},
+      uniforms:{uTime:this.time,uMoon:{value:MOON_DIRECTION.clone()}, uDaylight:INK.uDaylight, uAir:FIGURE_LIGHT.uAir, uLitColor:INK.uLitColor},
       vertexShader:'varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
-      fragmentShader:`uniform float uTime;uniform vec3 uMoon;varying vec3 direction;
+      fragmentShader:`uniform float uTime;uniform vec3 uMoon;uniform float uDaylight;uniform vec3 uAir;uniform vec3 uLitColor;varying vec3 direction;
         float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
         float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=n(p)*a;p=p*2.03+vec2(1.7,9.2);a*=.5;}return v;}
@@ -161,6 +163,12 @@ export class ForestEnvironment {
         sky+=vec3(.55,.66,.78)*halo+vec3(.08,.1,.12)*star*(1.-cloud);
         sky=mix(sky,vec3(.92,.95,.98)*maria,disc*(1.-cloud*.7));
         sky=mix(sky,mix(vec3(.05,.07,.08),vec3(.32,.38,.44),clamp(halo*3.,0.,1.)),cloud*.65);
+        // Dawn belongs to the same painted air as the trees and cast, including sky newly exposed
+        // by a travelling camera. Clouds remain broad shapes; no foreground is baked into them.
+        vec3 daylight=mix(mix(uAir,uLitColor*.85,.55),uAir*.95,smoothstep(-.1,.8,d.y));
+        daylight=mix(daylight,uLitColor*.92,cloud*.22);
+        daylight+=uLitColor*(disc*.6+halo*.24);
+        sky=mix(sky,daylight,uDaylight);
         gl_FragColor=vec4(sky,1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
