@@ -96,15 +96,20 @@ export async function artReview(world: World): Promise<void> {
       }
     } else if (kind === 'figure') {
       const a = shot.actors.get('review')!;
-      const cycle = at % 4;
-      a.input.pose = action.value === 'idle' ? 'idle' : cycle < 1.2 ? 'windup' : cycle < 1.8 ? 'strike' : cycle < 2.8 ? 'recover' : 'idle';
-      a.input.progress = cycle < 1.2 ? cycle / 1.2 : cycle < 1.8 ? (cycle - 1.2) / 0.6 : cycle < 2.8 ? cycle - 1.8 : 0;
+      const attack = CREATURE_SPECS[id as CreatureKind].attacks.find((x) => x.id === action.value);
+      const windup = attack?.windup ?? 0, strike = attack?.type === 'charge' ? 1.1 : attack?.type === 'dive' ? 0.7 : 0.42;
+      const recovery = attack?.recovery ?? 0, cycle = at % (windup + strike + recovery + 1.5);
+      a.input.pose = !attack ? 'idle' : cycle < windup ? 'windup' : cycle < windup + strike ? 'strike' : cycle < windup + strike + recovery ? 'recover' : 'idle';
+      a.input.progress = a.input.pose === 'windup' ? cycle / windup : a.input.pose === 'strike' ? (cycle - windup) / strike : a.input.pose === 'recover' ? (cycle - windup - strike) / recovery : 0;
       a.input.attack = action.value;
       a.figure.setYaw(Number(angle.value)); a.input.faceYaw = Number(angle.value);
+      const speed = a.input.pose === 'strike' && attack?.type === 'charge' ? CREATURE_SPECS[id as CreatureKind].speed * 3 : 0;
+      a.input.velocity.set(Math.sin(Number(angle.value)) * speed, 0, Math.cos(Number(angle.value)) * speed);
       // A held pose gets time for the rig springs to settle; Play advances in real time.
       const steps = playing ? 1 : 30;
-      for (let i=0;i<steps;i++) shot.update(1 / 60);
+      for (let i=0;i<steps;i++) shot.update(playing ? Math.max(0, Math.min(0.05, at - simulated)) : 1 / 60);
       simulated = at;
+      status.textContent = `${a.input.pose} · ${(a.input.progress * 100).toFixed(0)}% · H hides controls`;
     } else if (kind === 'prop') {
       flower?.set(Math.min(1, at / 3), Math.min(1, at / 3), at);
     } else if (kind === 'projectile') {

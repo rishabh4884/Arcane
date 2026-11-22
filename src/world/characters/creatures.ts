@@ -214,7 +214,7 @@ const FUR = '#8a8070', FUR_DARK = '#4a4238', WING = '#6e6455', WING_DARK = '#2e2
 /** A moth wing, built flat along +X from its root, scalloped at the edge. */
 export function mothWing(root: V3, span: number, chord: number, droop: number, fore: boolean, pitch = -0.95): THREE.BufferGeometry {
   const g = ellipsoid([root[0] + span * 0.5, root[1] - droop * 0.5, root[2] + (fore ? chord * 0.15 : -chord * 0.35)], [span * 0.5, 0.012, chord * 0.5], {
-    widthSegments: 26, heightSegments: 10,
+    widthSegments: 48, heightSegments: 24,
     deform: (d, p) => {
       // Root narrow, tip wide and scalloped; the fore wing sweeps forward, the hind wing hangs.
       const t = (d.x + 1) / 2;
@@ -224,6 +224,34 @@ export function mothWing(root: V3, span: number, chord: number, droop: number, f
       if (fore) p.z += t * t * chord * 0.25;
     },
   });
+  // Paint is part of the membrane, on both sides. Raised eye discs on only the upper face used to
+  // disappear when the wing pitched toward the camera, leaving four featureless dark paddles.
+  const positions = g.attributes.position, colors = new Float32Array(positions.count * 3);
+  const ochre = new THREE.Color(fore ? '#a39779' : '#817c72');
+  const dusk = new THREE.Color('#4b414d'), ink = new THREE.Color('#302c37');
+  const cream = new THREE.Color('#d4c5a3'), violet = new THREE.Color('#a59bad');
+  const painted = new THREE.Color();
+  for (let i = 0; i < positions.count; i++) {
+    const u = (positions.getX(i) - root[0]) / span;
+    const v = (positions.getZ(i) - root[2]) / chord - (fore ? 0.15 + u * u * 0.25 : -0.35);
+    // A broad dust-coloured field, a scalloped outer band and five quiet veins.
+    painted.copy(ochre).lerp(dusk, 0.18 + 0.30 * (1 - u));
+    const border = u + 0.045 * Math.cos(v * 15);
+    painted.lerp(dusk, smooth(0.77, 0.81, border) * 0.75);
+    const ribbon = bump(0.70, 0.78, border);
+    painted.lerp(cream, ribbon * 0.55);
+    const ray = Math.atan2(v, u + 0.12);
+    const vein = Math.pow(Math.max(0, Math.cos(ray * 19)), 28) * smooth(0.10, 0.3, u);
+    painted.lerp(dusk, vein * 0.25);
+    // One large ocellus per wing: dark rim, bone iris, a muted violet ring and an off-centre pupil.
+    const d = Math.hypot((u - 0.60) / (fore ? 0.13 : 0.15), (v - 0.025) / 0.22);
+    painted.lerp(ink, 1 - smooth(0.94, 1.08, d));
+    painted.lerp(cream, 1 - smooth(0.70, 0.83, d));
+    painted.lerp(violet, 1 - smooth(0.43, 0.55, d));
+    painted.lerp(ink, 1 - smooth(0.23, 0.33, d));
+    colors.set(painted.toArray(), i * 3);
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
   // Held open toward the viewer: pitched about the wing root so its face (and its eyes) show.
   return pitchAbout(g, root, pitch);
 }
@@ -275,10 +303,6 @@ export const GLOOM_MOTH: Design = {
     // Wings: dusty, veined, with an eye on each fore wing that stares back.
     b.pair(mothWing([0.1, 0.7, 0.14], 1.25, 0.7, 0.05, true), { color: WING, shade: WING_DARK, surface: 'wing', bones: ['wingL'] });
     b.pair(mothWing([0.09, 0.62, 0.0], 0.85, 0.55, 0.18, false), { color: '#5d5446', shade: WING_DARK, surface: 'wing', bones: ['hwingL'] });
-    const spot = (r: V3, y: number) => pitchAbout(ellipsoid([0.78, y, 0.26], r), [0.1, 0.7, 0.14], -0.95);
-    b.pair(spot([0.16, 0.012, 0.13], 0.727), { color: '#1a1714', surface: 'wing', bones: ['wingL'] });
-    b.pair(spot([0.1, 0.012, 0.08], 0.733), { color: '#c8b896', surface: 'wing', bones: ['wingL'] });
-    b.pair(spot([0.04, 0.012, 0.035], 0.739), { color: '#bba0ff', surface: 'glow', glow: 0.55, bones: ['wingL'] });
   },
   animate(a: Anim) {
     const r = a.rig;

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ellipsoid, fbm3, lathe, tube, type Body, type V3 } from '../rig/Body.ts';
 import type { Design } from '../rig/Character.ts';
 import { biped, blink, bump, idleLife, lookAt, smooth, TAU, type Anim } from '../rig/Rig.ts';
-import { flap, mothWing, pitchAbout, quadruped, serpent } from './creatures.ts';
+import { flap, mothWing, quadruped, serpent } from './creatures.ts';
 import { Sculpt } from '../rig/Sculpt.ts';
 import { BodyProxy, drape, RadialHull, union, vAtHeight } from '../rig/Cloth.ts';
 import { BRAMBLE_GOBLIN } from './spirits.ts';
@@ -521,14 +521,6 @@ export const MOTH_MATRON: Design = {
     // Vast wings with staring eyes.
     b.pair(mothWing([0.18, 3.55, -0.2], 3.3, 1.7, 0.1, true), { color: '#6f6555', shade: '#26221d', surface: 'wing', bones: ['wingL'] });
     b.pair(mothWing([0.16, 3.1, -0.22], 2.4, 1.4, 0.6, false), { color: '#5a5145', shade: '#201c18', surface: 'wing', bones: ['hwingL'] });
-    for (const [x, y, z, r0] of [[2.0, 3.72, -0.05, 0.42], [1.25, 2.68, -0.45, 0.3]] as const) {
-      const bone = y > 3.2 ? 'wingL' : 'hwingL';
-      const root: V3 = bone === 'wingL' ? [0.18, 3.55, -0.2] : [0.16, 3.1, -0.22];
-      const spot = (r: V3, dy: number) => pitchAbout(ellipsoid([x, y + dy, z], r), root, -0.95);
-      b.pair(spot([r0, 0.014, r0 * 0.8], 0.02), { color: '#16130f', surface: 'wing', bones: [bone] });
-      b.pair(spot([r0 * 0.62, 0.014, r0 * 0.5], 0.035), { color: '#d8c8a2', surface: 'wing', bones: [bone] });
-      b.pair(spot([r0 * 0.25, 0.014, r0 * 0.22], 0.05), { color: '#c9a8ff', surface: 'glow', glow: 0.7, bones: [bone] });
-    }
   },
   animate(a: Anim) {
     const r = a.rig;
@@ -541,19 +533,31 @@ export const MOTH_MATRON: Design = {
     idleLife(a, 0.6);
     lookAt(a, 0.9, 0.7);
     blink(a, 99);
-    r.rot('head', 0, 0, Math.sin(a.t * 0.4 + a.seed * 2) * 0.2 * a.life);
+    const attend = bump(2, 5, (a.t + a.seed * 8) % 9) * a.life;
+    r.rot('head', 0.09 * attend, -0.08 * attend, 0.06 * attend);
     // The lower arms always cradle the cage; the upper arms drift as if conducting.
-    r.rotPair('shoulder2', -0.3, 0, 0).rotPair('elbow2', -0.6).rot('cage', 0, a.t * 0.2);
+    r.rotPair('shoulder2', -0.3, 0, 0).rotPair('elbow2', -0.6).rot('cage', 0.025 * Math.sin(a.t * 1.2), 0.04 * attend);
     r.rotPair('shoulder', -0.2 + Math.sin(a.t * 0.6) * 0.1, 0, 0.25).rotPair('elbow', -0.4);
     if (a.pose === 'windup') {
       if (a.attack === 'embrace') r.rotPair('shoulder', -1.4 * c, 0, 0.9 * c).rotPair('elbow', -0.2 * c).rot('chest', -0.2 * c);
       else if (a.attack === 'children') r.rotPair('shoulder2', -1.5 * c).rot('cage', 0, 0, 0).pos('cage', 0, 0.4 * c, 0).rot('head', -0.4 * c);
-      else if (a.attack === 'dust') r.rotPair('shoulder', -0.4 * c, 0, 1.4 * c).rot('chest', -0.25 * c);
-      else r.rotPair('shoulder', -1.0 * c, 0, 1.2 * c).rot('head', -0.3 * c);
+      else if (a.attack === 'dust') r.rotPair('shoulder', -0.4 * c, 0, 1.4 * c).rot('chest', -0.25 * c).rotPair('wing', 0, -0.4 * c).rotPair('hwing', 0, -0.2 * c);
+      else {
+        // Brood: one hand gathers the moths from the cage, the other offers them a path.
+        r.rot('shoulderR', -0.85 * c, -0.3 * c, -0.55 * c).rot('elbowR', -0.65 * c).rot('handR', 0, 0.35 * c);
+        r.rot('shoulderL', -0.45 * c, 0.2 * c, 0.65 * c).rot('head', 0.14 * c, -0.18 * c);
+      }
     } else if (a.pose === 'strike') {
       if (a.attack === 'embrace') r.rotPair('shoulder', -1.4 + 0.6 * hit, 0, 0.9 - 1.1 * hit).rot('chest', -0.2 + 0.5 * hit).pos('hips', 0, -0.5 * hit, 0.6 * hit);
-      else if (a.attack === 'dust') r.rotPair('shoulder', -0.4, 0, 1.4 - 1.2 * hit).rotPair('wing', -0.5 * hit, 0, 0);
-      else r.rotPair('shoulder', -1.0, 0, 1.2);
+      else if (a.attack === 'dust') r.rotPair('shoulder', -0.4, 0, 1.4 - 1.2 * hit).rotPair('wing', -0.5 * hit, -0.4 + 0.9 * hit, 0).rotPair('hwing', 0, -0.2 + 0.65 * smooth(0.12, 0.7, p));
+      else if (a.attack === 'children') r.rotPair('shoulder2', -1.5).pos('cage', 0, 0.4, 0).rot('head', -0.4).rotPair('shoulder', -0.7 * hit, 0, 0.8 * hit);
+      else r.rot('shoulderR', -0.85 - 0.35 * hit, 0.25 * hit, -0.55 - 0.4 * hit).rot('elbowR', -0.65 + 0.6 * hit).rot('handR', -0.25 * hit, 0.35).rot('shoulderL', -0.45, 0.2, 0.65).rot('head', -0.05, -0.18 + 0.3 * hit);
+    } else if (a.pose === 'recover') {
+      const settle = 1 - smooth(0, 0.85, p);
+      if (a.attack === 'children') r.rotPair('shoulder2', -1.5 * settle).pos('cage', 0, 0.4 * settle, 0).rot('head', -0.4 * settle);
+      else if (a.attack === 'dust') r.rotPair('wing', -0.25 * settle, 0.45 * settle).rotPair('hwing', 0, 0.4 * settle).rotPair('shoulder', -0.4 * settle, 0, 0.2 * settle);
+      else if (a.attack === 'embrace') r.rotPair('shoulder', -0.8 * settle, 0, -0.2 * settle).rot('chest', 0.3 * settle);
+      else r.rot('shoulderR', -1.2 * settle, 0.25 * settle, -0.95 * settle).rot('handR', -0.25 * settle, 0.35 * settle).rot('shoulderL', -0.45 * settle, 0.2 * settle, 0.65 * settle);
     }
   },
 };

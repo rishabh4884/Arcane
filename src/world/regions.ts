@@ -561,12 +561,25 @@ export class Regions {
         break;
       }
       case 'bower': case 'loom': {
-        // Cocoons hang on silk from the canopy, swaying slightly.
+        // Six rooted nursery trees carry the silk. Every suspension point is sampled from its
+        // visible bough; the anchor stays fixed while only the hanging thread and cocoon sway.
         const silk = new THREE.MeshBasicMaterial({ color: '#d8d2c4', transparent: true, opacity: 0.45 });
+        const supports: THREE.CatmullRomCurve3[] = [];
+        for (let k = 0; k < 6; k++) {
+          const side = k % 2 ? -1 : 1, x = side * (11 + (k % 3) * 2), z = -7 - Math.floor(k / 2) * 10;
+          const y = terrainHeight(x, z), h = 11 + (k % 3);
+          const points: [number, number, number][] = [[x,y-0.2,z], [x+side*0.5,y+4,z-0.5], [x,y+h-2,z], [x-side*3,y+h,z+0.6], [x-side*7,y+h-0.5,z+1.5]];
+          this.add(new THREE.Mesh(tube(points, [0.75,0.56,0.34,0.2,0.035], {radial:12,segments:48}), wood));
+          for (let r = 0; r < 3; r++) {
+            const a = r * Math.PI * 2 / 3;
+            this.add(new THREE.Mesh(tube([[x,y+0.5,z],[x+Math.cos(a),y+0.08,z+Math.sin(a)],[x+Math.cos(a)*2.3,terrainHeight(x+Math.cos(a)*2.3,z+Math.sin(a)*2.3)-0.03,z+Math.sin(a)*2.3]], [0.35,0.2,0.02], {radial:8}), wood));
+          }
+          supports.push(new THREE.CatmullRomCurve3(points.map((p)=>new THREE.Vector3(...p)), false, 'centripetal'));
+        }
         for (let i = 0; i < 26; i++) {
-          const p = ringPoint(rng, 7, 24, false), top = p.y + 9 + rng() * 5, hang = 3 + rng() * 4;
+          const p = supports[i % supports.length].getPoint(0.57 + Math.floor(i / 6) * 0.095), hang = 2.5 + rng() * 3;
           const g = new THREE.Group();
-          g.position.set(p.x, top, p.z);
+          g.position.copy(p);
           g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, hang, 3).translate(0, -hang / 2, 0), silk));
           const c = new THREE.Mesh(plain(rough(ellipsoid([0, -hang - 0.5, 0], [0.28, 0.6, 0.28], { widthSegments: 10, heightSegments: 10 }), 0.05, 6, 0.4)), std('#c9c0ae'));
           g.add(c);

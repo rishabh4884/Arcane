@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { petalGeometry, fieldFlowerGeometry } from '../src/cutscene/botany.ts';
 import { flowerField } from '../src/cutscene/cast.ts';
 import { stagHideGeometry } from '../src/world/characters/stagHide.ts';
+import { mothWing } from '../src/world/characters/creatures.ts';
+import { Body } from '../src/world/rig/Body.ts';
 import { drawn } from '../src/world/render/DrawnProp.ts';
 import { createCreatureProjectile, animateCreatureProjectile, type ProjectileStyle } from '../src/world/fx/creatureProjectiles.ts';
 
@@ -20,6 +22,18 @@ function closedShell(g: THREE.BufferGeometry) {
 }
 
 describe('sculpted living props', () => {
+  it('retains painted wing markings through body baking and mirroring', () => {
+    const wing = mothWing([0,0,0], 2, 1, 0.1, true);
+    const paint = wing.attributes.color;
+    expect(paint.count).toBe(wing.attributes.position.count);
+    const values = Array.from(paint.array);
+    expect(Math.max(...values) - Math.min(...values)).toBeGreaterThan(0.3);
+    const body = new Body();
+    body.pair(wing, {color:'#ffffff',surface:'wing',bones:['root'],relief:0});
+    const baked = body.bake().geometry.attributes.color;
+    expect(Array.from(baked.array.slice(0,paint.array.length))).toEqual(values);
+    expect(Array.from(baked.array.slice(paint.array.length))).toEqual(values);
+  });
   it('closes petal rims and hide hems instead of leaving backface holes', () => {
     const petal = petalGeometry(0.22, 0.075), hide = stagHideGeometry();
     closedShell(petal); closedShell(hide);

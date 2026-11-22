@@ -421,6 +421,7 @@ export class Body {
       const pos = geometry.attributes.position as THREE.BufferAttribute;
       const nor = geometry.attributes.normal as THREE.BufferAttribute;
       const grad = geometry.attributes.grad as THREE.BufferAttribute | undefined;
+      const paint = geometry.attributes.color as THREE.BufferAttribute | undefined;
       c0.set(o.color);
       c1.set(o.shade ?? o.color);
       const sid = SURFACES[o.surface ?? 'skin'];
@@ -439,7 +440,8 @@ export class Body {
           bakedAO[k] = perVertex.ao[i];
           curv[k] = perVertex.curv[i];
         } else {
-          mixed.copy(c0).lerp(c1, grad ? grad.getX(i) : 0);
+          if (paint) mixed.setRGB(paint.getX(i), paint.getY(i), paint.getZ(i));
+          else mixed.copy(c0).lerp(c1, grad ? grad.getX(i) : 0);
           color.set([mixed.r, mixed.g, mixed.b], k * 3);
           surf[k * 2] = sid;
           surf[k * 2 + 1] = o.glow ?? 0;

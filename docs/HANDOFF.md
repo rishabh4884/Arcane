@@ -2,6 +2,22 @@
 
 ## Continuation checkpoint — 2026-11-22
 
+Latest continuation: pushed `c9f2a64` (spell light reaches painted surfaces; traveling fire and magic)
+and `038a310` (Stag draped hide, continuous antlers, neck weights and distributed sweep; named attack
+audio; editable `art/source/characters/stag.blend`). Preserve these verified fixes.
+
+Active next batch: moth wing paint is now embedded on both sides, body baking preserves vertex
+paint, Matron has asymmetric brood acting and recoveries, review timing follows combat timings.
+Nursery cocoons now hang from six visible rooted boughs instead of random points in the sky.
+
+New owner requirements, alongside the broader art direction task: substantially remodel Lantern
+Widow and Fenwyrm; reproduce/fix King's underarm tears during raised-arm poses; replace Moonblade
+(owner confirmed this is the spell they called Thunderclast) with a new spell and gesture; keep
+Ember Lash but replace its sideways fist gesture with an aiming-friendly gesture. Proposed next:
+thornwood lance replacing the crescent, steady fist sign; held pointing for fire, with save migration
+and recognition conflict tests. These spell/gesture changes are NOT implemented yet. Widow/Fenwyrm
+and King repairs are also pending. Do not sideline the wider creativity/animation/world-cohesion pass.
+
 The owner has explicitly authorized substantial remodeling, animation, sound and art direction.
 The acceptance target is a living, playable 2D animated episode. Preserve the mature woodland
 identity, readable combat and owner-only commits; do not treat the older “don't redesign” guidance
