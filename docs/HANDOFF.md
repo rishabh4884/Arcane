@@ -14,9 +14,8 @@ Moonblade has been replaced with Blackthorn Wake (hold a fist). Ember Lash uses 
 Existing default bindings migrate when the replacement gesture is available. See commit 8969da8.
 The Widow now has open lantern cages, a split veil, gathered bodice and connected palms. Fenwyrm
 has cheek fans, a painted throat and new attack poses. The King's bodice and sleeve use separate
-weight fields with a closed shoulder lining. The editable Widow scene matches runtime. Fenwyrm
-and King Blender scenes precede the final throat paint and sleeve weight adjustment. Regenerate
-them with tools/export-character.ts and art/character_source.py when Blender access is available.
+weight fields with a closed shoulder lining. The editable Widow, Fenwyrm and King scenes match
+the runtime assets in b5baf93, including the final throat paint and sleeve weights.
 
 The owner has explicitly authorized substantial remodeling, animation, sound and art direction.
 The acceptance target is a living, playable 2D animated episode. Preserve the mature woodland
