@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { SpellEffect } from '../config/spells.ts';
 import { HOLLOW_STAG } from './characters/bosses.ts';
 import { animate, facingPlane, type SpellAnimation, type SpellContext } from './effects.ts';
+import { tube } from './rig/Body.ts';
 import { Character } from './rig/Character.ts';
 import { terrainHeight } from './spatial.ts';
 import { emberLash as stagedEmberLash } from './fx/emberLash.ts';
@@ -10,7 +11,7 @@ import { Trail, WHITE, clamp01, easeOutBack, easeOutCubic, flareTexture, glowSpr
 /**
  * THE NEWER SPELLS
  * ────────────────
- * Ember Lash, Thornsnare, Moonblade, Wisp Swarm and Sunflare, and the eight legendary spells taken
+ * Ember Lash, Thornsnare, Blackthorn Wake, Wisp Swarm and Sunflare, and the eight legendary spells taken
  * from the bosses. Multi-target spells receive the points and delays the Encounter resolved, so
  * each visible impact lands on the beat the damage does.
  */
@@ -97,13 +98,6 @@ function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext
 
 /* ─────────────────────────────── LANE SPELLS ─────────────────────────────── */
 
-function crescentGeometry(): THREE.ShapeGeometry {
-  const s = new THREE.Shape();
-  s.absarc(0, 0, 1, Math.PI * 0.1, Math.PI * 0.9, false);
-  s.absarc(0, -0.28, 0.82, Math.PI * 0.86, Math.PI * 0.14, true);
-  return new THREE.ShapeGeometry(s, 24);
-}
-
 function laneOf(ctx: SpellContext, target: THREE.Vector3): { from: THREE.Vector3; dir: THREE.Vector3; length: number } {
   const from = ctx.lane?.from.clone() ?? (ctx.cameraPosition ?? new THREE.Vector3()).clone();
   const to = ctx.lane?.to.clone() ?? target.clone();
@@ -112,37 +106,35 @@ function laneOf(ctx: SpellContext, target: THREE.Vector3): { from: THREE.Vector3
   return { from, dir: dir.normalize(), length };
 }
 
-function moonblade(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
+function blackthornWake(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
   const group = new THREE.Group();
   const { from, dir, length } = laneOf(ctx, target);
-  const blade = new THREE.Mesh(crescentGeometry(), new THREE.MeshBasicMaterial({ color: color.clone().multiplyScalar(0.55), transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  const glow = new THREE.Mesh(blade.geometry, new THREE.MeshBasicMaterial({ color: new THREE.Color('#8fa8ff'), transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
-  glow.scale.setScalar(1.35);
-  blade.add(glow);
-  blade.scale.setScalar(1.3);
-  group.add(blade);
-  const trail = new Trail(color, 0.5, 0.35, 40, 1);
-  group.add(trail.mesh);
-  const speed = 34, travel = Math.min(length, 48) / speed;
-  const p = new THREE.Vector3();
-  let hitIndex = 0;
-  return animate(group, travel + 0.6, (_t, age, dt) => {
-    const d = Math.min(age, travel) * speed;
-    p.copy(from).addScaledVector(dir, d + 1.2);
-    p.y = terrainHeight(p.x, p.z) + 1.25;
-    blade.position.copy(p);
-    // The crescent stands upright, edge-on to its flight, tilted as it spins slightly.
-    blade.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-    blade.rotateZ(Math.PI / 2 + Math.sin(age * 6) * 0.15);
-    blade.scale.setScalar(0.9 + Math.min(1, age * 3) * 0.4);
-    (blade.material as THREE.MeshBasicMaterial).opacity = 0.8 * clamp01(1 - Math.max(0, age - travel) / 0.4);
-    ctx.illuminate?.(2, p, color, (blade.material as THREE.MeshBasicMaterial).opacity * 0.75, 6);
-    trail.push(p);
-    trail.update(dt, ctx.cameraPosition);
-    trail.opacity = clamp01(1 - Math.max(0, age - travel) / 0.4);
-    while (ctx.delays && hitIndex < ctx.delays.length && age >= ctx.delays[hitIndex]) { impactBurst(ctx, ctx.targets![hitIndex], color, 0.9); hitIndex++; }
-    if (Math.random() < 0.6) ctx.particles?.emit({ x: p.x, y: p.y + (Math.random() - 0.5), z: p.z, vx: 0, vy: 0.2, vz: 0, color, size: 0.06, sizeEnd: 0.01, ttl: 0.6, drag: 1.5, style: 'glow' });
-  }, 0.18, () => ctx.screen?.flash('#dfe8ff', 0.12), () => trail.dispose());
+  const reach = Math.min(length, 50);
+  const bark = new THREE.MeshBasicMaterial({ color: '#584637' });
+  const sap = new THREE.MeshBasicMaterial({ color });
+  const shoots: { stem: THREE.Group; at: number }[] = [];
+  for (let distance = 1; distance <= reach; distance += 1.35) {
+    const stem = new THREE.Group();
+    const lean = Math.sin(distance * 2.3) * 0.55;
+    const height = 1.45 + 0.5 * Math.cos(distance);
+    stem.add(new THREE.Mesh(tube([[0,-0.1,0],[lean,0.65,0.22],[lean*0.5,height,0.7],[0,height+0.16,1.3]], [0.21,0.16,0.07,0.004], {radial:7}), bark));
+    stem.add(new THREE.Mesh(tube([[lean,0.65,0.22],[lean-0.28,1.05,0.36],[lean-0.42,1.16,0.63]], [0.095,0.055,0.002], {radial:6}), sap));
+    stem.position.copy(from).addScaledVector(dir,distance);
+    stem.position.y = terrainHeight(stem.position.x,stem.position.z);
+    stem.rotation.y = Math.atan2(dir.x,dir.z);
+    stem.visible = false;
+    shoots.push({stem,at:0.18+distance/34});
+    group.add(stem);
+  }
+  let hit = 0;
+  return animate(group, 1.3+reach/34, (_t,age) => {
+    for (const {stem,at} of shoots) {
+      const local = age-at;
+      stem.visible = local >= 0 && local < 1;
+      if (stem.visible) stem.scale.y = easeOutCubic(clamp01(local/0.12)) * clamp01((1-local)/0.42);
+    }
+    while (ctx.delays && hit < ctx.delays.length && age >= ctx.delays[hit]) impactBurst(ctx,ctx.targets![hit++],color,0.5);
+  }, 0.18);
 }
 
 function earthshatter(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
@@ -496,7 +488,7 @@ export function createSpellAnimation2(kind: SpellEffect, origin: THREE.Vector3, 
   switch (kind) {
     case 'fire': return stagedEmberLash(origin, target, color, ctx);
     case 'roots': return thornsnare(target, color, ctx);
-    case 'blade': return moonblade(target, color, ctx);
+    case 'blade': return blackthornWake(target, color, ctx);
     case 'wisps': return wispSwarm(origin, target, color, ctx);
     case 'flare': return sunflare(origin, color, ctx);
     case 'quake': return earthshatter(target, color, ctx);

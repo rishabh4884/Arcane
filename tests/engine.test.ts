@@ -96,7 +96,7 @@ describe('GestureEngine (end to end on synthetic hands)', () => {
 
   it('ignores gestures that are not bound to a spell', () => {
     // Every gesture in the library is switched on here, but only the known spells' gestures are bound.
-    const d = makeDriver(liveGestures());
+    const d = makeDriver(liveGestures([['spell-10', 'slash']]));
     expect(d.hold(0.7, 0.5, POSES.fist, 1500)).toEqual([]);
     expect(d.hold(0.7, 0.5, POSES.open, 1500)).toEqual(['aegis']);
     expect(GESTURES.length).toBeGreaterThan(liveGestures().length);

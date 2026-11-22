@@ -101,6 +101,9 @@ export class SpellBook {
     if (bow && saved[bow.id] === 'lance' && this.gestures.some((gesture) => gesture.id === 'bowdraw')) {
       saved[bow.id] = 'bowdraw';
     }
+    for (const [id, old, next] of [['spell-8','wrath','lance'], ['spell-10','slash','fist']]) {
+      if (saved[id] === old && this.spells.some(s => s.id === id && s.defaultGesture === next) && !Object.values(saved).includes(next)) saved[id] = next;
+    }
     const used = new Set<string>();
     const next = new Map<string, string>();
     for (const spell of this.spells) {

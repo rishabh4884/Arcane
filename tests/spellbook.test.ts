@@ -93,7 +93,7 @@ describe('SpellBook', () => {
     book.assign('spell-1', 'eclipse');
     const ids = book.activeGestures().map((g) => g.id);
     expect(ids).toContain('eclipse');
-    expect(ids).not.toContain('fist');
+    expect(ids).not.toContain('bowdraw');
     expect(ids).toHaveLength(base.length);
   });
 

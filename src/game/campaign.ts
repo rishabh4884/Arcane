@@ -128,8 +128,8 @@ const TIPS: Record<number, string> = {
   2: 'Watch for the wind-up: a spirit that coils is about to strike. Frostbind (✌️ held) breaks it.',
   3: 'Lantern Wraiths throw embers from afar. Raise Aegis (🖐️ held still) before one reaches you.',
   4: 'Hurt? Draw a circle with a pointing finger to Mend.',
-  5: 'Sweep a fist sideways for Ember Lash; press an open hand down for Thornsnare.',
-  6: 'Cut sideways with a pointing finger for Moonblade: it passes through every spirit in a line.',
+  5: 'Point and hold steady for Ember Lash. Press an open hand down for Thornsnare.',
+  6: 'Hold a closed fist toward your target. Blackthorn Wake drives a hedge of thorns through the lane.',
   7: 'Hold horns (🤘) for a Wisp Swarm, or a trident (three fingers) for Sunflare to stun everything in sight.',
 };
 

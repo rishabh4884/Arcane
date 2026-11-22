@@ -48,8 +48,7 @@ const ICONS: Record<string, readonly Shape[]> = {
     { tag: 'path', className: 'icon-accent', attrs: { d: 'M16 10l-3-3M33 15l3-3M12 32l-3 1M8 44h32' } },
   ],
   'spell-10': [
-    { tag: 'path', className: 'icon-main', attrs: { d: 'M8 30C14 12 34 8 42 14 30 12 18 18 14 32z', fill: 'currentColor' } },
-    { tag: 'path', className: 'icon-accent', attrs: { d: 'M6 40l10-6M14 42l6-4' } },
+    { tag: 'path', className: 'thorn-spire', attrs: { d: 'M6 43Q15 35 19 22L16 13 23 19Q30 12 40 4L30 22 37 20 26 30 19 33 12 43Z', fill: 'currentColor' } },
   ],
   'spell-11': [
     { tag: 'circle', className: 'icon-main', attrs: { cx: '14', cy: '16', r: '4' } },
