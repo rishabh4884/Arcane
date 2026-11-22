@@ -144,7 +144,7 @@ export class AudioEngine {
       case 'player-hurt': this.hurt(); break;
       case 'player-blocked': this.blocked(); break;
       case 'enemy-windup': this.windup(event.kind, event.pan); break;
-      case 'enemy-strike': this.strike(event.kind, event.attack, event.pan); break;
+      case 'enemy-strike': this.strike(event.kind, event.attack, event.pan, event.attackId); break;
       case 'enemy-hit': this.enemyHit(event.pan); break;
       case 'enemy-death': this.death(event.pan); break;
       case 'projectile': this.projectileVoice(event.style, event.pan); break;
@@ -547,10 +547,10 @@ export class AudioEngine {
     }
   }
 
-  private strike(kind: string, attack: string | undefined, pan: number): void {
-    if (attack === 'bell') {
+  private strike(kind: string, attack: string | undefined, pan: number, attackId?: string): void {
+    if (attackId === 'bell') {
       this.projectileVoice('pale', pan);
-    } else if (kind === 'stag' && attack === 'antlers') {
+    } else if (kind === 'stag' && attackId === 'antlers') {
       this.noise({ filter: 'bandpass', freq: 530, freqEnd: 180, q: 4, decay: 0.3, gain: 0.15, pan });
       this.tone({ type: 'triangle', freq: 173, freqEnd: 108, decay: 0.22, gain: 0.07, pan });
     } else if (kind === 'moth' || kind === 'matron') {

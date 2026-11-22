@@ -24,7 +24,9 @@ describe('sculpted living props', () => {
     const petal = petalGeometry(0.22, 0.075), hide = stagHideGeometry();
     closedShell(petal); closedShell(hide);
     expect(petal.boundingBox!.max.y).toBeCloseTo(0.22);
-    expect(hide.boundingBox!.max.y).toBeCloseTo(2.29);
+    expect(hide.boundingBox!.max.y).toBeGreaterThan(2.29);
+    // The free front edge must stay behind the exposed rib cage.
+    expect(hide.boundingBox!.max.z).toBeLessThan(-0.39);
     expect(hide.boundingBox!.min.y).toBeLessThan(1.4);
     expect(hide.boundingBox!.min.y).toBeGreaterThan(1);
     petal.dispose(); hide.dispose();

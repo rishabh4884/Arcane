@@ -26,6 +26,20 @@ describe('AudioEngine without a browser audio context', () => {
 });
 
 describe('creature sound identities', () => {
+  it('routes named Stag attacks separately from their combat mechanics', () => {
+    const audio = new AudioEngine();
+    const internals = audio as unknown as {ctx: {state:string}; tone: (o: Record<string, unknown>) => void; noise: (o: Record<string, unknown>) => void};
+    internals.ctx = {state:'running'};
+    const tone = vi.spyOn(internals, 'tone').mockImplementation(() => {}), noise = vi.spyOn(internals, 'noise').mockImplementation(() => {});
+    const scores: string[] = [];
+    for (const [attackId, attack] of [['antlers','melee'], ['bell','shockwave'], ['charge','charge']] as const) {
+      tone.mockClear(); noise.mockClear();
+      audio.handle({type:'enemy-strike',kind:'stag',attack,attackId,position:new THREE.Vector3(),pan:0.3});
+      scores.push(JSON.stringify([tone.mock.calls,noise.mock.calls]));
+    }
+    expect(new Set(scores).size).toBe(3);
+    vi.restoreAllMocks();
+  });
   it('gives each projectile a distinct, bounded synthesis score with its event pan', () => {
     const audio = new AudioEngine();
     const internals = audio as unknown as {ctx: {state:string}; tone: (o: Record<string, unknown>) => void; noise: (o: Record<string, unknown>) => void};

@@ -215,12 +215,14 @@ export const HOLLOW_STAG: Design = {
     // A curved neck of seven vertebrae, each with its spine; the back's vertebrae carry tall
     // spines at the withers that shorten toward the hips.
     const neck: V3[] = [[0, 2.28, 0.98], [0, 2.42, 1.08], [0, 2.56, 1.16], [0, 2.7, 1.22], [0, 2.82, 1.27], [0, 2.92, 1.31], [0, 2.98, 1.36]];
+    const neckBones = ['neck', 'chest', 'head'];
     // A ligament runs through the neck so the vertebrae read as one column.
-    s.chain([[0, 2.24, 0.94], ...neck, [0, 3.02, 1.42]], [0.04, 0.042, 0.04, 0.038, 0.036, 0.036, 0.036, 0.038, 0.04], { ...bone, bones: ['neck', 'chest', 'head'], blend: 0.03 });
-    neck.forEach((p, i) => {
-      s.blob(p, [0.075, 0.06, 0.06], { ...bone, bones: ['neck', i < 2 ? 'chest' : 'head'], blend: 0.03 });
-      s.cone(p, [p[0], p[1] + 0.07, p[2] - 0.05], 0.03, 0.012, { ...bone, bones: ['neck'], blend: 0.015 });
-      for (const x of [1, -1]) s.cone(p, [x * 0.09, p[1] - 0.01, p[2] + 0.01], 0.022, 0.012, { ...bone, bones: ['neck'], blend: 0.012 });
+    s.chain([[0, 2.24, 0.94], ...neck, [0, 3.02, 1.42]], [0.04, 0.042, 0.04, 0.038, 0.036, 0.036, 0.036, 0.038, 0.04], { ...bone, bones: neckBones, blend: 0.03 });
+    neck.forEach((p) => {
+      // Spurs and their vertebra share the same influence field, including during a hard turn.
+      s.blob(p, [0.075, 0.06, 0.06], { ...bone, bones: neckBones, blend: 0.03 });
+      s.cone(p, [p[0], p[1] + 0.07, p[2] - 0.05], 0.03, 0.012, { ...bone, bones: neckBones, blend: 0.015 });
+      for (const x of [1, -1]) s.cone(p, [x * 0.09, p[1] - 0.01, p[2] + 0.01], 0.022, 0.012, { ...bone, bones: neckBones, blend: 0.012 });
     });
     for (let i = 0; i < 13; i++) {
       const t = i / 12, z = 0.92 - t * 1.9, y = 2.24 - t * 0.08 + Math.sin(t * Math.PI) * 0.04;
@@ -260,16 +262,20 @@ export const HOLLOW_STAG: Design = {
     // Antlers: a main beam that sweeps up, out and back, a brow tine forward over the face, bez and
     // trez tines rising from the beam, and a crown of tines at the top.
     const ant = { color: '#3a3128', shade: '#7c6b56', surface: 'bark' as const, relief: 0.012, reliefFreq: 16, stretch: 0.5 };
+    // Tines are much narrower than the body's voxel spacing. A swept closed surface keeps their
+    // tips continuous; voxelising them produced detached chips beneath the cold flames.
+    const antlerBranch = (points: V3[], radii: number[], bones: string[]) =>
+      b.part(tube(points, radii, { radial: 9, segments: 30 }), { ...ant, bones, relief: 0 });
     for (const x of [1, -1]) {
       const A = x > 0 ? 'antlerL' : 'antlerR', A2 = x > 0 ? 'antler2L' : 'antler2R';
       const beam: V3[] = [[x * 0.11, 3.18, 1.45], [x * 0.3, 3.45, 1.32], [x * 0.52, 3.72, 1.14], [x * 0.78, 3.96, 0.96], [x * 1.0, 4.12, 0.86], [x * 1.12, 4.2, 0.84]];
-      s.chain(beam, [0.06, 0.05, 0.042, 0.034, 0.026, 0.012], { ...ant, bones: [A, A2], blend: 0.025 });
+      antlerBranch(beam, [0.06, 0.05, 0.042, 0.034, 0.026, 0.012], [A, A2]);
       s.blob([x * 0.12, 3.19, 1.45], [0.07, 0.04, 0.07], { ...ant, bones: [A, 'head'], blend: 0.02 });
-      s.chain([[x * 0.2, 3.3, 1.4], [x * 0.28, 3.38, 1.6], [x * 0.3, 3.48, 1.8]], [0.032, 0.022, 0.006], { ...ant, bones: [A], blend: 0.02 });
-      s.chain([[x * 0.33, 3.48, 1.3], [x * 0.38, 3.7, 1.46], [x * 0.4, 3.9, 1.56]], [0.03, 0.02, 0.005], { ...ant, bones: [A, A2], blend: 0.018 });
-      s.chain([[x * 0.55, 3.75, 1.12], [x * 0.56, 4.02, 1.24], [x * 0.58, 4.25, 1.3]], [0.028, 0.018, 0.005], { ...ant, bones: [A2], blend: 0.016 });
-      s.chain([[x * 0.8, 3.98, 0.95], [x * 0.84, 4.25, 1.0], [x * 0.86, 4.46, 1.04]], [0.024, 0.016, 0.004], { ...ant, bones: [A2], blend: 0.014 });
-      s.chain([[x * 1.0, 4.12, 0.86], [x * 1.16, 4.36, 0.92], [x * 1.25, 4.5, 0.96]], [0.02, 0.013, 0.004], { ...ant, bones: [A2], blend: 0.012 });
+      antlerBranch([[x * 0.2, 3.3, 1.4], [x * 0.28, 3.38, 1.6], [x * 0.3, 3.48, 1.8]], [0.032, 0.022, 0.006], [A]);
+      antlerBranch([[x * 0.33, 3.48, 1.3], [x * 0.38, 3.7, 1.46], [x * 0.4, 3.9, 1.56]], [0.03, 0.02, 0.005], [A, A2]);
+      antlerBranch([[x * 0.55, 3.75, 1.12], [x * 0.56, 4.02, 1.24], [x * 0.58, 4.25, 1.3]], [0.028, 0.018, 0.005], [A2]);
+      antlerBranch([[x * 0.8, 3.98, 0.95], [x * 0.84, 4.25, 1.0], [x * 0.86, 4.46, 1.04]], [0.024, 0.016, 0.004], [A2]);
+      antlerBranch([[x * 1.0, 4.12, 0.86], [x * 1.16, 4.36, 0.92], [x * 1.25, 4.5, 0.96]], [0.02, 0.013, 0.004], [A2]);
     }
     b.sculpted(s, 0.022);
     // The ribs (thin, separate bones) and the sternum they meet.
@@ -288,7 +294,7 @@ export const HOLLOW_STAG: Design = {
     // The ridge follows the spine; only the hanging lobes follow the loose hide bones.
     const back = ['hips', 'spine'], leftHide = ['hips', 'spine', 'hideL'], rightHide = ['hips', 'spine', 'hideR'];
     b.part(stagHideGeometry(), {
-      color: '#645442', shade: '#302a23', surface: 'fur', relief: 0,
+      color: '#89745b', shade: '#352f2a', surface: 'fur', relief: 0,
       bones: ['hips', 'spine', 'hideL', 'hideR'],
       bonesAt: (p) => p.y > 2.08 || Math.abs(p.x) < 0.26 ? back : p.x > 0 ? leftHide : rightHide,
     });
@@ -331,17 +337,17 @@ export const HOLLOW_STAG: Design = {
         r.rotPair('hthigh', -0.16 * brace).rotPair('hknee', 0.24 * brace);
         r.rot('neck', 0.45 * c).rot('head', 0.36 * c).rotPair('antler', -0.04 * brace);
       }
-      else if (a.attack === 'antlers') { r.rot('neck', 0.35 * c, 0.6 * c).rot('head', 0.35 * c); }
+      else if (a.attack === 'antlers') { r.rot('spine', 0, 0.12 * c).rot('chest', 0, 0.14 * c).rot('neck', 0.35 * c, 0.34 * c).rot('head', 0.35 * c); }
       else if (a.attack === 'coldfire') { r.rot('neck', -0.4 * c, 0.15 * bump(0.15, 0.8, p)).rot('head', -0.35 * c).rot('jaw', 0.3 * c); r.scl('chest', 0.035 * c, 0.015 * c, 0.02 * c).rotPair('antler', -0.06 * c, 0, 0.05 * c); }
       else { r.rot('spine', -0.35 * c).rotPair('fthigh', -1.1 * c).rotPair('fknee', -1.3 * c).pos('hips', 0, -0.25 * c, 0); }
     } else if (a.pose === 'strike') {
       if (charging) r.rot('neck', 0.5).rot('head', 0.45);
-      else if (a.attack === 'antlers') r.rot('neck', 0.35, 0.6 - 1.6 * hit).rot('head', 0.35, -0.3 * hit);
+      else if (a.attack === 'antlers') r.rot('spine', 0, 0.12 - 0.3 * hit).rot('chest', 0, 0.14 - 0.38 * hit).rot('neck', 0.35, 0.34 - 0.84 * hit).rot('head', 0.35, -0.15 * hit);
       else if (a.attack === 'bell') r.rot('spine', -0.35 + 0.5 * hit).rotPair('fthigh', -1.1 + 1.2 * hit).rotPair('fknee', -1.3 + 1.3 * hit).pos('hips', 0, -0.25 + 0.15 * hit, 0);
       else { r.rot('neck', -0.4 + 0.16 * hit, -0.18 * hit).rot('head', -0.35 + 0.12 * hit).rot('jaw', 0.4 * (1 - smooth(0.5, 1, p))); r.rotPair('antler', -0.06 * (1 - hit)); }
     } else if (a.pose === 'recover') {
       const settle = 1 - smooth(0, 0.7, p);
-      if (a.attack === 'antlers') r.rot('neck', 0.25 * settle, -0.8 * settle).rot('head', 0.18 * settle);
+      if (a.attack === 'antlers') r.rot('spine', 0, -0.18 * settle).rot('chest', 0, -0.24 * settle).rot('neck', 0.25 * settle, -0.5 * settle).rot('head', 0.18 * settle, -0.15 * settle);
       else if (a.attack === 'charge') {
         r.pos('hips', 0, -0.06 * bump(0, 0.6, p), 0.09 * settle).rotPair('fthigh', 0.15 * settle).rot('neck', 0.4 * settle);
         r.rot('head', 0.25 * settle, Math.sin(p * Math.PI * 4) * 0.08 * settle);

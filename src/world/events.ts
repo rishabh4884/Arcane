@@ -13,7 +13,7 @@ export type GameEvent =
   | { type: 'player-hurt'; amount: number; source?: string }
   | { type: 'player-blocked' }
   | { type: 'enemy-windup'; kind: CreatureKind; position: THREE.Vector3; pan: number; attack?: AttackType; boss?: boolean }
-  | { type: 'enemy-strike'; kind: CreatureKind; position: THREE.Vector3; pan: number; attack?: AttackType; boss?: boolean }
+  | { type: 'enemy-strike'; kind: CreatureKind; position: THREE.Vector3; pan: number; attack?: AttackType; attackId?: string; boss?: boolean }
   | { type: 'enemy-hit'; kind: CreatureKind; position: THREE.Vector3; pan: number; effect: SpellEffect; amount?: number; critical?: boolean }
   | { type: 'enemy-death'; kind: CreatureKind; position: THREE.Vector3; pan: number; height: number; boss?: boolean }
   | { type: 'projectile'; position: THREE.Vector3; pan: number; style?: string }

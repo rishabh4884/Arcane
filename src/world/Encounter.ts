@@ -768,7 +768,7 @@ export class Encounter {
     const p = a.figure.group.position;
     const damage = a.state.damage;
     const color = new THREE.Color(BOSS_COLOR[a.kind] ?? COLORS.ember);
-    this.fx.events?.emit({ type: 'enemy-strike', kind: a.kind, position: p.clone(), pan: this.pan(p), attack: attack.type, boss: a.boss });
+    this.fx.events?.emit({ type: 'enemy-strike', kind: a.kind, position: p.clone(), pan: this.pan(p), attack: attack.type, attackId: attack.id, boss: a.boss });
     const from = a.figure.castPoint(new THREE.Vector3());
     switch (attack.type) {
       case 'melee': {
