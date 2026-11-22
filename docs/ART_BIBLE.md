@@ -295,7 +295,7 @@ each element behaves differently (not a recoloured burst).
 | Aegis | A ward of interlocking glyph-leaves that blooms open and shivers on hits |
 | Ember Lash | Embers gather and swirl in the palm; a whip of flame lashes in an arc and cracks; flame tongues lick *upward* on impact; embers rise and smoke curls after |
 | Thornsnare | Roots erupt from the ground and coil; dirt spray; thorns tighten |
-| Moonblade | A thin crescent of cold light sweeping flat; a clean cut line left hanging in the air |
+| Blackthorn Wake | Hooked blackthorn shoots rise in sequence through the aimed lane, then sink into the earth |
 | Wisp Swarm | Soft flowing wisps that circle, then dive with ribbon trails |
 | Sunflare | A slow-building sun in the hand, then a wave of warm light that pushes the dark back |
 | Legendary spells | Each is a set piece with its own large-scale shape (a quake rippling the ground, a veil of moonlight, a tide, a bloom of flowers, a stag of light, falling stars, stillness, dawn) |

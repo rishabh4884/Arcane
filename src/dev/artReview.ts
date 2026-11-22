@@ -158,7 +158,7 @@ export async function artReview(world: World): Promise<void> {
         action.replaceChildren(new Option('Idle','idle'));
         for (const attack of CREATURE_SPECS[id as CreatureKind].attacks) action.append(new Option(attack.id,attack.id));
         action.value = params.get('attack') ?? 'idle';
-        const ground = figure.group.position.y, distance = Math.max(3, design.height * 2.25);
+        const ground = figure.group.position.y, distance = Math.max(id === 'fenwyrm' ? 11 : 3, design.height * 2.25);
         stage.camera.position.set(0, ground + design.height * 0.6, 5 + distance);
         stage.camera.lookAt(0, ground + design.height * 0.48, 5); stage.camera.fov = 42;
         time.max = '12';

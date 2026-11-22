@@ -101,8 +101,20 @@ export const FENWYRM: Design = {
       .bone('tail4', 'tail3', [0, 0.24, -4.1])
       .bone('tail5', 'tail4', [0, 0.18, -4.9], [0, 0.12, -5.7]);
     const spine: V3[] = [[0, 2.12, 2.78], [0, 1.6, 2.55], [0, 0.92, 2.0], [0, 0.5, 1.1], [0, 0.42, 0], [0, 0.4, -1.1], [0, 0.36, -2.2], [0, 0.3, -3.2], [0, 0.24, -4.1], [0, 0.18, -4.9], [0, 0.12, -5.7]];
-    b.part(tube(spine, [0.34, 0.38, 0.47, 0.5, 0.5, 0.46, 0.4, 0.32, 0.22, 0.12, 0.03], { radial: 16, segments: 90, flatten: { axis: [1, 0, 0], amount: 0.12 }, wobble: 0.05 }),
-      { color: '#2f3d2c', shade: '#111710', surface: 'chitin', bones: ['head', 'neck', 'chest', 'spine', 'hips', ...TAIL], falloff: 3 });
+    const bodySkin = tube(spine, [0.34,0.38,0.47,0.5,0.5,0.46,0.4,0.32,0.22,0.12,0.03], {radial:24,segments:100,flatten:{axis:[1,0,0],amount:0.12}});
+    // Pale throat scutes climb the front of the raised neck. The flanks carry broad reed shadows.
+    const skinPaint = new Float32Array(bodySkin.attributes.position.count * 3);
+    const moss = new THREE.Color('#59664a'), belly = new THREE.Color('#b0a183'), stripe = new THREE.Color('#344639');
+    const tint = new THREE.Color(), normals = bodySkin.attributes.normal, positions = bodySkin.attributes.position;
+    for (let i=0;i<positions.count;i++) {
+      const z = positions.getZ(i), y = positions.getY(i);
+      const underside = -normals.getY(i) + normals.getZ(i) * smooth(0.7,2.1,z);
+      const band = Math.sin(z*4.7 + y*3.8 + Math.abs(positions.getX(i))*2);
+      tint.copy(moss).lerp(stripe,smooth(-0.1,0.3,band)*0.8).lerp(belly,smooth(0.1,0.45,underside)*(0.68+0.2*smooth(-0.8,-0.4,band)));
+      tint.toArray(skinPaint,i*3);
+    }
+    bodySkin.setAttribute('color',new THREE.BufferAttribute(skinPaint,3));
+    b.part(bodySkin,{color:'#59664a',surface:'chitin',bones:['head','neck','chest','spine','hips',...TAIL],falloff:3,relief:0});
     // A ridge of webbed fins down the back, glowing faintly at the tips.
     for (let i = 1; i < 26; i++) {
       const u = i / 26;
@@ -129,8 +141,20 @@ export const FENWYRM: Design = {
     }
     for (const s of [1, -1]) {
       b.part(ellipsoid([0.22 * s, 2.33, 3.3], [0.07, 0.05, 0.06]), { color: '#ffffff', surface: 'glow', glow: 1, bones: ['eyes'] });
-      b.part(ellipsoid([0.42 * s, 2.3, 2.78], [0.34, 0.03, 0.22], { deform: (d, p) => { p.applyAxisAngle(Y, -0.5 * s); p.y += Math.abs(d.x) * 0.1; } }),
-        { color: '#2a4a3c', shade: '#7ff0c8', surface: 'wing', bones: [s > 0 ? 'frillL' : 'frillR'] });
+      // A pleated gill fan opens from the cheek. Membrane and radial ribs share one hinge.
+      const fin = s > 0 ? 'frillL' : 'frillR';
+      const rays: V3[] = [[0.46*s,2.71,2.88],[0.77*s,2.63,2.68],[0.93*s,2.39,2.50],[0.82*s,2.17,2.48],[0.57*s,2.02,2.59]];
+      const fan = new THREE.BufferGeometry(), vertices:number[] = [], faces:number[] = [];
+      for (const [i,tip] of rays.entries()) {
+        const root:V3 = [0.27*s,2.25,2.92];
+        vertices.push(...root,...tip);
+        if (i>0) faces.push(2*i-2,2*i-1,2*i+1);
+        b.part(tube([root,tip],[0.034,0.006],{radial:6}),{color:'#85967a',shade:'#444e43',surface:'bone',bones:[fin]});
+      }
+      fan.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3)); fan.setIndex(faces); fan.computeVertexNormals();
+      const reverse=fan.clone(); reverse.setIndex([...faces].reverse()); reverse.computeVertexNormals(); reverse.translate(0,0,-0.008);
+      for (const membrane of [fan,reverse]) b.part(membrane,{color:'#548571',shade:'#284438',surface:'wing',bones:[fin],relief:0});
+      b.part(tube([[0.11*s,2.39,3.46],[0.23*s,2.41,3.30],[0.33*s,2.36,3.03]],[0.031,0.055,0.043],{radial:8}),{color:'#647555',shade:'#334331',surface:'chitin',bones:['head']});
       for (let k = 0; k < 3; k++) {
         b.part(tube([[0.12 * s + k * 0.03 * s, 2.02, 3.45 - k * 0.12], [0.16 * s + k * 0.05 * s, 1.75, 3.5 - k * 0.1], [0.14 * s + k * 0.05 * s, 1.5, 3.55 - k * 0.1]], [0.016, 0.01, 0.002], { radial: 4 }),
           { color: '#45563c', shade: '#1f281a', surface: 'hair', bones: ['jaw'] });
@@ -159,6 +183,8 @@ export const FENWYRM: Design = {
       else { r.rot('neck', 0.35 * c).rot('head', -0.25 * c).rot('jaw', 0.55 * c).rotPair('frill', -0.3 * c, 0, 0.4 * c); }
     } else if (a.pose === 'strike') {
       if (a.attack === 'lash') { for (const [i, t] of TAIL.entries()) r.rot(t, 0, (0.35 - 0.9 * hit) * (i + 1) * 0.4); r.rot('chest', 0, 0.3 * hit); }
+      else if (a.attack === 'brood') r.rot('chest',-0.28).rot('head',-0.28).rotPair('frill',-0.55,0,0.65).rot('jaw',0.55);
+      else if (a.attack === 'spit') r.rot('neck',0.16-0.42*hit,0.2-0.4*p).rot('jaw',0.36+0.22*Math.sin(p*Math.PI*3)).rotPair('frill',-0.25,0,0.32);
       else { r.rot('neck', 0.35 - 0.8 * hit).rot('head', -0.25 + 0.4 * hit).rot('jaw', 0.75).rotPair('frill', -0.4, 0, 0.5); }
     } else if (a.pose === 'stagger') r.rot('neck', 0.4 * bump(0, 1, p)).rot('head', -0.3 * bump(0, 1, p));
   },
@@ -713,15 +739,25 @@ export const LANTERN_WIDOW: Design = {
     }
     b.part(ellipsoid([0, 1.95, 0.05], [0.55, 0.42, 0.6]), { color: CHITIN, shade: '#0d0b10', surface: 'chitin', bones: ['hips', 'spine'] });
     // A wraith's upper body, hooded and veiled, rising from the front.
-    b.part(lathe([[0.15, 3.5], [0.3, 3.35], [0.36, 3.05], [0.36, 2.7], [0.42, 2.35], [0.5, 2.1]], { segments: 26, scaleZ: 0.85, center: [0, 0, 0.4] }),
-      { color: '#3a3342', shade: '#16121b', surface: 'cloth', bones: ['chest', 'spine'] });
+    // A gathered bodice flares over the spider thorax. The longer back panels rest on the abdomen.
+    b.part(lathe([[0.19,3.58],[0.37,3.32],[0.31,3.06],[0.24,2.85],[0.4,2.50],[0.62,2.12]], {
+      segments: 40, scaleZ: 0.84, center:[0,0,0.4], closeBottom:true,
+      deform:(o,angle,t) => {
+        o.multiplyScalar(1 + t * 0.15 * Math.cos(angle * 7 + t));
+        o.y -= t*t*(0.12 + 0.11*Math.sin(angle*4));
+        o.z -= t*t*0.18;
+      },
+    }), {color:'#594754',shade:'#221c2a',surface:'fabric',bones:['hips','spine','chest'],relief:0});
     b.part(ellipsoid([0, 3.85, 0.5], [0.22, 0.27, 0.24], { deform: (d, p) => { if (d.y > 0.4) { p.z -= (d.y - 0.4) * 0.25; p.y += (d.y - 0.4) * 0.2; } } }),
       { color: '#3e3647', shade: '#1b1620', surface: 'cloth', bones: ['head'] });
     b.part(ellipsoid([0, 3.82, 0.66], [0.15, 0.19, 0.1]), { color: '#e6e0d4', shade: '#8f887b', surface: 'bone', bones: ['head'] });
     b.part(tube([[0.02, 3.95, 0.76], [-0.03, 3.8, 0.765], [0.01, 3.66, 0.75]], [0.004], { radial: 4 }), { color: '#ffcf7a', surface: 'glow', glow: 0.8, bones: ['head'] });
     for (const s of [1, -1]) b.part(ellipsoid([0.06 * s, 3.86, 0.755], [0.022, 0.014, 0.008]), { color: '#ffffff', surface: 'glow', glow: 1, bones: ['eyes'] });
-    b.part(lathe([[0.2, 3.75], [0.26, 3.5], [0.3, 3.2]], { center: [0, 0, 0.62], segments: 20, deform: (o) => { if (o.z < 0) o.multiplyScalar(0.3); } }),
-      { color: '#4a4152', shade: '#221d28', surface: 'cloth', bones: ['head', 'neck'] });
+    // Split veil framing the mask, falling in two long folds onto the collar.
+    b.pair(tube([[0.04,4.09,0.54],[0.19,3.98,0.62],[0.21,3.76,0.65],[0.26,3.53,0.56],[0.34,3.36,0.53]], [0.075,0.11,0.09,0.08,0.016], {radial:12,flatten:{axis:[0,0,1],amount:0.45}}),
+      {color:'#796774',shade:'#3e3343',surface:'fabric',bones:['head','neck'],relief:0});
+    b.pair(tube([[0.68,2.45,0.95],[0.68,2.34,0.99],[0.68,2.29,1.01]], [0.05,0.057,0.034], {radial:9}),
+      {color:'#ac9c8c',shade:'#766a65',surface:'bone',bones:['handL']});
     b.pair(tube([[0.32, 3.28, 0.45], [0.62, 2.78, 0.75], [0.68, 2.38, 0.98]], [0.08, 0.07, 0.09], { radial: 9, capEnd: false }), { color: '#3a3342', shade: '#16121b', surface: 'cloth', bones: ['shoulderL', 'elbowL', 'handL', 'chest'] });
     for (const dx of [-0.025, 0, 0.025]) b.pair(tube([[0.68 + dx, 2.32, 1.0], [0.69 + dx * 1.4, 2.18, 1.06], [0.7 + dx * 1.6, 2.06, 1.1]], [0.012, 0.009, 0.002], { radial: 4 }), { color: '#cfc8ba', surface: 'bone', bones: ['handL'] });
     // Eight long legs, knees high above the body, each with a little lantern at the knee.
@@ -735,7 +771,12 @@ export const LANTERN_WIDOW: Design = {
     // Lanterns hanging from the gown on chains.
     for (const [bone, x, z] of [['lan1L', 0.42, -1.1], ['lan2L', 0.3, -1.8]] as const) {
       b.pair(tube([[x, 1.55, z], [x, 1.15, z]], [0.008], { radial: 4 }), { color: '#3a3128', surface: 'metal', bones: [bone] });
-      b.pair(lathe([[0.02, 1.16], [0.07, 1.13], [0.1, 1.05], [0.1, 0.92], [0.07, 0.86], [0.02, 0.84]], { center: [x, 0, z], segments: 10, closeTop: true, closeBottom: true }), { color: '#3a3128', surface: 'metal', bones: [bone] });
+      // Pierced bronze cage. Four bowed stays leave the captive flame visible between them.
+      for (const y of [1.13,0.85]) b.pair(lathe([[0.035,y+0.045],[0.105,y],[0.07,y-0.025]], {center:[x,0,z],segments:12,closeTop:true,closeBottom:true}), {color:'#93774d',shade:'#47382f',surface:'metal',bones:[bone]});
+      for (let i=0;i<4;i++) {
+        const angle=i*Math.PI/2, dx=Math.cos(angle), dz=Math.sin(angle);
+        b.pair(tube([[x+dx*0.075,1.13,z+dz*0.075],[x+dx*0.12,0.99,z+dz*0.12],[x+dx*0.075,0.85,z+dz*0.075]],[0.012,0.014,0.012],{radial:5}),{color:'#69533c',surface:'metal',bones:[bone]});
+      }
       b.pair(ellipsoid([x, 0.99, z], [0.075, 0.1, 0.075]), { color: '#ffc36a', surface: 'glow', glow: 0.9, bones: [bone] });
     }
   },
@@ -852,7 +893,7 @@ export function buildRegal(b: Body, look: RegalLook): void {
         { where: (_u, v) => v > 0.925, color: GOLD, shade: GOLD_DARK, surface: 'thread', glow: living ? 0.4 : 0.15 },
         { where: (u, v) => (u < 0.022 || u > 0.978) && v > 0.02, color: GOLD, shade: GOLD_DARK, surface: 'thread', glow: living ? 0.4 : 0.15 },
       ],
-      bones: ['neck', 'chest', 'shoulderL', 'shoulderR'], bonesByHeight: [[6.2, ['chest', 'spine']], [5.2, legBones(5)], [3.0, ['hips', 'thighL', 'thighR', 'kneeL', 'kneeR', 'cape1']]],
+      bones: ['neck', 'chest', 'spine'], bonesByHeight: [[6.2, ['chest', 'spine']], [5.2, legBones(5)], [3.0, ['hips', 'thighL', 'thighR', 'kneeL', 'kneeR', 'cape1']]],
     });
     b.draped(robe);
     // A rolled hem and edges give the cloth its thickness.
@@ -878,9 +919,14 @@ export function buildRegal(b: Body, look: RegalLook): void {
         collider: union(arm, robeHull), thickness: 0.035, folds: 5, foldDepth: 0.06, seed: x > 0 ? 5 : 6, stiffness: 0.35, steps: 90,
         color: NIGHT, shade: look.cloakDark, surface: 'fabric', glow: living ? 0.3 : 0,
         bands: [{ where: (_u, v) => v > 0.86, color: GOLD, shade: GOLD_DARK, surface: 'thread', glow: living ? 0.4 : 0.15 }],
-        bones: [`shoulder${S}`, 'chest'], bonesByHeight: [[6.1, [`shoulder${S}`, `elbow${S}`]], [4.8, [`elbow${S}`, `wrist${S}`]]],
+        bones: [`shoulder${S}`, `elbow${S}`, `wrist${S}`],
       });
       b.draped(sleeve);
+      // Sew a closed gusset through the shoulder opening. The bodice stays on the torso while the
+      // sleeve and its lining turn on the same pivot, including when both hands rise overhead.
+      b.part(tube([[x*0.65,7.04,0.04],[x*1.03,7.08,0.05],[x*1.17,6.70,0.13]], [0.31,0.38,0.29], {radial:16}),
+        {color:NIGHT,shade:look.cloakDark,surface:'fabric',bones:['chest',`shoulder${S}`],relief:0});
+
       roll(sleeve.hem, 0.03, GOLD, 'thread', [`wrist${S}`, `elbow${S}`]);
       // A collar of dead feathers lies over each shoulder, following the cloth.
       for (let i = 0; i < 9; i++) {

@@ -10,13 +10,13 @@ Active next batch: moth wing paint is now embedded on both sides, body baking pr
 paint, Matron has asymmetric brood acting and recoveries, review timing follows combat timings.
 Nursery cocoons now hang from six visible rooted boughs instead of random points in the sky.
 
-New owner requirements, alongside the broader art direction task: substantially remodel Lantern
-Widow and Fenwyrm; reproduce/fix King's underarm tears during raised-arm poses; replace Moonblade
-(owner confirmed this is the spell they called Thunderclast) with a new spell and gesture; keep
-Ember Lash but replace its sideways fist gesture with an aiming-friendly gesture. Proposed next:
-thornwood lance replacing the crescent, steady fist sign; held pointing for fire, with save migration
-and recognition conflict tests. These spell/gesture changes are NOT implemented yet. Widow/Fenwyrm
-and King repairs are also pending. Do not sideline the wider creativity/animation/world-cohesion pass.
+Moonblade has been replaced with Blackthorn Wake (hold a fist). Ember Lash uses a held point.
+Existing default bindings migrate when the replacement gesture is available. See commit 8969da8.
+The Widow now has open lantern cages, a split veil, gathered bodice and connected palms. Fenwyrm
+has cheek fans, a painted throat and new attack poses. The King's bodice and sleeve use separate
+weight fields with a closed shoulder lining. The editable Widow scene matches runtime. Fenwyrm
+and King Blender scenes precede the final throat paint and sleeve weight adjustment. Regenerate
+them with tools/export-character.ts and art/character_source.py when Blender access is available.
 
 The owner has explicitly authorized substantial remodeling, animation, sound and art direction.
 The acceptance target is a living, playable 2D animated episode. Preserve the mature woodland
