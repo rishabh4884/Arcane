@@ -165,6 +165,26 @@ export class Encounter {
   get currentLevel(): LevelDef | null { return this.level; }
   get active(): boolean { return this.mode !== 'idle' && this.mode !== 'won' && this.mode !== 'lost'; }
 
+  /**
+   * Development cheat support. Resolves the fight currently on the field through the ordinary
+   * death path, so the normal wave clear, boss, reward, and cutscene flow remains in charge.
+   */
+  skipCurrentWave(): boolean {
+    if (this.mode !== 'wave' && this.mode !== 'boss-intro' && this.mode !== 'boss') return false;
+
+    // Bring in every creature already promised by this fight so the player sees a full fall,
+    // rather than silently deleting enemies that were still walking out of the wood.
+    const queued = this.pendingSpawns.splice(0).sort((a, b) => a.at - b.at);
+    for (const spawn of queued) this.spawn(spawn.kind, spawn.from, spawn.slot, spawn.boss);
+
+    for (const actor of this.actors) {
+      if (!actor.state.alive) continue;
+      actor.state.hit('dawn', Number.MAX_SAFE_INTEGER);
+      this.release(actor);
+    }
+    return true;
+  }
+
   startLevel(level: LevelDef): void {
     if (this.disposed) return;
     this.stop();

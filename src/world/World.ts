@@ -405,6 +405,9 @@ export class World {
 
   snapshot(): EncounterSnapshot { return this.encounter.snapshot(); }
 
+  /** Resolve the encounter currently on the field through its usual defeat flow. */
+  skipCurrentWave(): boolean { return this.encounter.skipCurrentWave(); }
+
   /** Stage a named region (menus, cutscenes). */
   setRegion(name: string): void { this.regions.apply(namedRegion(name)); }
 
