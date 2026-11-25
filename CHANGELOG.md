@@ -6,6 +6,41 @@ All notable changes to ARcane are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed (second pass)
+- Hand tracking starts on the page and moves itself to a CPU worker on devices where the page is too
+  slow for it, so it no longer blocks frames or competes for the GPU; the choice is remembered.
+- The sky shades only where it shows (drawn last among solid objects, on the far plane).
+- Auto quality counts frames that miss the display's refresh instead of setting most of them aside.
+
+### Fixed (second pass)
+- Signs were slow to register when hand tracking delivered fewer than ~20 results a second: one
+  missed result reset a sign half held (the 180 ms lost-hand grace assumed 30 a second), and a cursor
+  jump could not be confirmed below 10 a second. Both now stretch with the tracker's measured pace.
+- Hand tracking in the worker is fed one frame at a time, always the newest, instead of queueing a
+  frame behind the one being read.
+- The hand markers moved, stopped and moved again at the tracker's pace (12-20 results a second off
+  Apple silicon). Between results they now carry on at the hand's own speed for up to one interval
+  (`CursorGlide`), so they move on every drawn frame without trailing further behind.
+
+### Added (second pass)
+- `?bench&diagnose` and `?bench&draws`, and `tools/bench-serve.mjs` to collect results from phones and
+  other computers.
+
+### Fixed
+
+- On many GPUs outside Apple silicon (seen on Windows through ANGLE) the picture collapsed into a flat dark wash with blocky edges from the first spell of a fight: full-screen post passes kept the default depth test and the GPU rejected them. Full-screen passes no longer depth-test.
+- Stalls in fights: spells and creatures compiled their shaders again every time (three.js frees a program when its last material is disposed, and custom shaders lose their source id). Programs are now kept for the whole game, every spell is rehearsed behind the loading screen, and shader error checks run in development only. The first cast no longer freezes the game for about a second.
+- A 30–50 ms hitch at every creature spawn (culling skinned every vertex on the CPU); creatures now take their culling sphere from the bind pose.
+- Quality that drained away over a session: the adaptive resolution counted loading and one-off stalls as slowness, recovered only above 45 fps and switched post-processing off for good.
+- The cel-light pass no longer draws the whole scene a second time while spells are in the air, and no longer shows dark shapes where a figure is still rising out of the ground.
+
+### Added
+
+- A quality governor and a Graphics setting (Auto, High, Balanced, Low). Auto trades resolution first, then figure shadows, edge anti-aliasing and inner ink, uses the GPU's own frame time where available, leaves GPU room for hand tracking, climbs back when it can and remembers each device's level.
+- `?bench`: an automated benchmark that plays real levels on any device with the camera running, synthetic hands and every spell cast, and reports frame times, tracking cost and quality over time. See `docs/PERFORMANCE.md`.
+- Cutscenes can be skipped with a Skip button or Esc; `?nocutscenes` skips them all.
+- The tracking view (D) shows the frame rate and quality level.
+
 ### Removed
 
 - The Gale spell, its wind effect, its gust through the grass, its sound, dock icon and the left-sweep Gale gesture. Six spells now ship by default; old saved bindings for Gale are ignored.

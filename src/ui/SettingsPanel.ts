@@ -1,5 +1,6 @@
 import { GESTURE_GROUPS, isDualGesture, type GestureDef, type GestureGroup } from '../config/gestures.ts';
 import type { Tuning } from '../config/tuning.ts';
+import type { GraphicsMode } from '../world/Quality.ts';
 import type { SpellBook } from '../spells/SpellBook.ts';
 import { el } from './dom.ts';
 import { createSpellIcon } from './spell-icons.ts';
@@ -11,6 +12,8 @@ export interface SettingsOptions {
   onTuning: (t: Tuning) => void;
   onDebug: (visible: boolean) => void;
   isDebugVisible: () => boolean;
+  /** Optional graphics quality: Auto adapts to the device; the others hold a level. */
+  graphics?: { mode(): GraphicsMode; set(mode: GraphicsMode): void };
   /** Optional master volume and mute. */
   sound?: { readonly volume: number; readonly muted: boolean; setVolume(v: number): void; setMuted(m: boolean): void };
 }
@@ -57,6 +60,25 @@ export class SettingsPanel {
       el('h3', {}, 'Sound'),
       el('label', { class: 'row slider' }, el('span', { class: 'label' }, 'Volume'), volume, out),
       el('label', { class: 'row check' }, mute, el('span', {}, 'Mute (M)')),
+    ];
+  }
+
+  private graphicsControls(): HTMLElement[] {
+    const graphics = this.o.graphics;
+    if (!graphics) return [];
+    const mode = graphics.mode();
+    const select = el(
+      'select',
+      { 'aria-label': 'Graphics quality', onchange: (event: Event) => graphics.set((event.target as HTMLSelectElement).value as GraphicsMode) },
+      el('option', { value: 'auto', selected: mode === 'auto' }, 'Auto · suits this device'),
+      el('option', { value: 'high', selected: mode === 'high' }, 'High · sharpest'),
+      el('option', { value: 'balanced', selected: mode === 'balanced' }, 'Balanced'),
+      el('option', { value: 'low', selected: mode === 'low' }, 'Low · smoothest'),
+    );
+    return [
+      el('h3', {}, 'Graphics'),
+      el('label', { class: 'row' }, el('span', { class: 'label' }, 'Quality'), select),
+      el('p', { class: 'note' }, 'Auto keeps the wood smooth on this device and remembers what suits it. Hand tracking shares the graphics chip, so a smoother picture also reads your hands faster.'),
     ];
   }
 
@@ -129,12 +151,14 @@ export class SettingsPanel {
       slider('Pause between casts', 200, 1500, 50, this.tuning.cooldownMs, ' ms', (v) => (this.tuning.cooldownMs = v)),
       slider('Reach', 1, 2, 0.05, this.tuning.cursorGain, '×', (v) => (this.tuning.cursorGain = v)),
       el('label', { class: 'row check' }, debug, el('span', {}, 'Show tracking view (D)')),
+      ...this.graphicsControls(),
       ...this.soundControls(),
       el('button', {
         class: 'reset',
         type: 'button',
         onclick: () => {
           book.resetToDefaults();
+          this.o.graphics?.set('auto');
           this.tuning = structuredClone(this.o.defaults);
           this.o.onTuning(this.tuning);
           this.render();

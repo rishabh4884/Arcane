@@ -64,6 +64,11 @@ export class InkEdgePass extends Pass {
           gl_FragColor = vec4(mix(base.rgb, uInk, edge * fade * 0.8), base.a);
         }`,
     });
+    // A full-screen composite covers its whole (just cleared) target: it must not depth-test. With
+    // the default depth test, some sessions on some GPUs (seen on an Adreno laptop through ANGLE)
+    // rejected the whole quad, and the frame came out as a flat dark wash of the clear colour.
+    this.material.depthTest = false;
+    this.material.depthWrite = false;
     this.quad = new FullScreenQuad(this.material);
     this.needsSwap = true;
   }

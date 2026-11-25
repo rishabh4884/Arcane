@@ -6,7 +6,6 @@ import { CHAPTERS, LEVELS } from '../src/game/campaign.ts';
 import { SpellBook } from '../src/spells/SpellBook.ts';
 import { DESIGNS } from '../src/world/characters/index.ts';
 import { CREATURE_SPECS, CreatureState, PlayerState, type CreatureKind } from '../src/world/EncounterState.ts';
-import { FrameBudget } from '../src/world/FrameBudget.ts';
 import { GNOME_ATTACK_RANGE, GNOME_DESIGNS, GNOME_LIFETIME, GnomeSummons } from '../src/world/GnomeSummons.ts';
 import { ellipsoid, lathe, tube } from '../src/world/rig/Body.ts';
 import { Character } from '../src/world/rig/Character.ts';
@@ -202,17 +201,6 @@ describe('procedural bodies', () => {
     frames(new THREE.Vector3(1.4, 0, 0), Math.PI / 2, 60);
     expect(c.yaw).toBeCloseTo(Math.PI / 2, 1);
     c.dispose();
-  });
-});
-
-describe('adaptive resolution budget', () => {
-  it('lowers render resolution under sustained load without exceeding safe bounds', () => {
-    const budget = new FrameBudget(1.5, 1.5); for (let i = 0; i < 200; i++) budget.sample(0.12);
-    expect(budget.ratio).toBeGreaterThanOrEqual(0.75); expect(budget.ratio).toBeLessThan(1);
-  });
-  it('recovers cautiously and ignores invalid timing samples', () => {
-    const budget = new FrameBudget(0.8, 1.5); expect(budget.sample(NaN)).toBeNull(); expect(budget.sample(-1)).toBeNull();
-    for (let i = 0; i < 1500; i++) budget.sample(1 / 60); expect(budget.ratio).toBeGreaterThan(0.8); expect(budget.ratio).toBeLessThanOrEqual(1.5);
   });
 });
 

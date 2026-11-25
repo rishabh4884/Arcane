@@ -122,6 +122,20 @@ const GradeShader = {
 };
 
 /**
+ * Full-screen passes draw a quad over their whole (just cleared) target and must never depth-test.
+ * three.js leaves most of their materials with the default depth test; on some GPUs (seen on an
+ * Adreno laptop through ANGLE) a full-screen draw was then rejected outright, and the frame turned
+ * into a flat dark wash of the clear colour from the first spell of a fight onwards.
+ */
+function fullScreenOnly(pass: object): void {
+  for (const value of Object.values(pass)) {
+    for (const item of Array.isArray(value) ? value : [value]) {
+      if (item instanceof THREE.Material) { item.depthTest = false; item.depthWrite = false; }
+    }
+  }
+}
+
+/**
  * Depth of field, bloom (half resolution) and a grade pass. Additive spells and lanterns bloom;
  * the painted, untonemapped scenery passes through unchanged below the highlight shoulder.
  */
@@ -130,6 +144,7 @@ export class PostFX {
   private readonly bloom: UnrealBloomPass;
   private readonly depthOfField: ShaderPass;
   private readonly grade: ShaderPass;
+  private readonly smaa: SMAAPass;
   private enabledFlag: boolean;
   private time = 0;
 
@@ -156,7 +171,8 @@ export class PostFX {
     this.composer.addPass(new OutputPass());
     // Edge anti-aliasing in display space: the post path bypasses the canvas's own MSAA, and SMAA
     // keeps silhouettes clean without softening the painting inside them.
-    this.composer.addPass(new SMAAPass());
+    this.smaa = new SMAAPass();
+    this.composer.addPass(this.smaa);
     this.grade = new ShaderPass(GradeShader);
     this.grade.uniforms.uAuthored.value = authored ? 1 : 0;
     // The paintings already carry their paper texture. Animated display-space grain was landing
@@ -164,12 +180,19 @@ export class PostFX {
     this.grade.uniforms.uGrain.value = drawn ? 0 : 0.045;
     this.grade.uniforms.uSharpen.value = drawn ? 0 : authored ? 0.18 : 0.35;
     this.composer.addPass(this.grade);
+    for (const pass of [this.bloom, this.smaa, this.grade, ...this.composer.passes.filter((p) => p instanceof OutputPass)]) fullScreenOnly(pass);
     this.enabledFlag = enabled;
   }
 
   get enabled(): boolean { return this.enabledFlag; }
 
   setEnabled(enabled: boolean): void { this.enabledFlag = enabled; }
+
+  /** Quality trades (see Quality.ts): edge anti-aliasing and the figures' inner ink. */
+  setFeatures(features: { smaa: boolean; ink: boolean }): void {
+    this.smaa.enabled = features.smaa;
+    if (this.ink) this.ink.enabled = features.ink;
+  }
 
   /** Chapter grade: tint, lift, saturation and exposure (eased by the caller). */
   setGrade(tint: THREE.Vector3, lift: THREE.Vector3, saturation: number, exposure: number, vignette: number): void {
@@ -189,8 +212,10 @@ export class PostFX {
   setSize(width: number, height: number, pixelRatio: number): void {
     this.composer.setPixelRatio(pixelRatio);
     this.composer.setSize(width, height);
-    this.ink?.setSize(Math.round(width * pixelRatio), Math.round(height * pixelRatio));
-    this.celLight?.setSize(Math.round(width * pixelRatio), Math.round(height * pixelRatio));
+    // The passes' own buffers match the composer's exactly, so depth can be copied between them.
+    const frameWidth = this.composer.renderTarget1.width, frameHeight = this.composer.renderTarget1.height;
+    this.ink?.setSize(frameWidth, frameHeight);
+    this.celLight?.setSize(frameWidth, frameHeight);
     // Bloom is a blur: half resolution is indistinguishable and a quarter of the cost.
     this.bloom.setSize(Math.max(1, Math.round(width * pixelRatio * 0.5)), Math.max(1, Math.round(height * pixelRatio * 0.5)));
     this.grade.uniforms.uAspect.value = width / Math.max(1, height);

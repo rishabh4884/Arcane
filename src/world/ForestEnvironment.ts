@@ -138,7 +138,10 @@ export class ForestEnvironment {
     const material = this.art.material(new THREE.ShaderMaterial({
       side:THREE.BackSide,depthWrite:false,
       uniforms:{uTime:this.time,uMoon:{value:MOON_DIRECTION.clone()}, uDaylight:INK.uDaylight, uAir:FIGURE_LIGHT.uAir, uLitColor:INK.uLitColor},
-      vertexShader:'varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',
+      // On the far plane (z = w), drawn after every solid thing (see renderOrder below): the depth
+      // test then leaves only the sky that actually shows, instead of shading the whole frame first
+      // and painting the wood over it. The clouds' noise made this one of the dearest draws.
+      vertexShader:'varying vec3 direction;void main(){direction=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);gl_Position.z=gl_Position.w;}',
       fragmentShader:`uniform float uTime;uniform vec3 uMoon;uniform float uDaylight;uniform vec3 uAir;uniform vec3 uLitColor;varying vec3 direction;
         float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
@@ -175,7 +178,7 @@ export class ForestEnvironment {
       }`,
     }));
     const sky=new THREE.Mesh(this.art.geometry(new THREE.SphereGeometry(170,48,24)),material);
-    sky.frustumCulled=false;sky.renderOrder=-10;this.group.add(sky);return sky;
+    sky.frustumCulled=false;sky.renderOrder=1e9;this.group.add(sky);return sky;
   }
 
   private makeCarpet():void {

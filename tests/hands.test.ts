@@ -109,6 +109,31 @@ describe('HandsEngine: two hands at once', () => {
     expect(d.log.sort()).toEqual(['fist@left', 'victory@right']);
   });
 
+  it('holds a sign through slow tracking with missed results (10 a second, every fourth missed)', async () => {
+    const { HandsEngine } = await import('../src/gestures/HandsEngine.ts');
+    const { DEFAULT_TUNING } = await import('../src/config/tuning.ts');
+    const engine = new HandsEngine(gestures('fist'), DEFAULT_TUNING);
+    const fired: string[] = [];
+    // A missed result leaves 200 ms between sightings: past the 180 ms that suits 30 results a
+    // second, but only two results at this pace. The half-held sign must not start over.
+    for (let i = 0, t = 1000; i < 20; i++, t += 100) {
+      const frames: HandFrame[] = i % 4 === 3 ? [] : [{ time: t, landmarks: makeHand(1.0, 0.5, fist), aspect: ASPECT, confidence: 0.95, side: 'right' }];
+      engine.process(frames, t).fired.forEach((f) => fired.push(`${f.gestureId}@${f.side}`));
+    }
+    expect(fired).toEqual(['fist@right']);
+  });
+
+  it('still lets a hand go when it has really left, at any tracking pace', async () => {
+    const { HandsEngine } = await import('../src/gestures/HandsEngine.ts');
+    const { DEFAULT_TUNING } = await import('../src/config/tuning.ts');
+    const engine = new HandsEngine(gestures('fist'), DEFAULT_TUNING);
+    let t = 1000;
+    const step = (present: boolean) => { t += 100; return engine.process(present ? [{ time: t, landmarks: makeHand(1.0, 0.5, fist), aspect: ASPECT, confidence: 0.95, side: 'right' }] : [], t); };
+    for (let i = 0; i < 3; i++) step(true);
+    for (let i = 0; i < 5; i++) step(false);       // half a second without the hand
+    expect(step(false).hands.some((h) => h.present)).toBe(false);
+  });
+
   it('works for a single hand too, in either slot', () => {
     const d = makeDuoDriver(gestures('fist', 'victory'));
     d.hold(null, at(1.0, fist), 1000);

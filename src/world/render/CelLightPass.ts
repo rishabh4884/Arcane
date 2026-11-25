@@ -10,6 +10,12 @@ import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js'
  * hidden behind whatever stands in front of it, into its own buffer, cuts it into those bands, keeps
  * only a whisper of the soft falloff, and adds it back over the frame. The bloom that follows lays the
  * soft halo of digital compositing around the hard cores. With no spell in the air it does nothing.
+ *
+ * What hides the light is the depth of everything solid (not the mist, the halos or the particles,
+ * which light passes through). The scene's own render already lays that depth down before any
+ * transparent object, so a marker drawn last among the solid objects copies it, as it stands at that
+ * moment, into this pass's buffer: one GPU copy instead of drawing the whole scene a second time.
+ * Should the copy be unavailable (a mismatched depth format), the pass draws that depth itself.
  */
 
 /** Layer the spells' additive light renders on. */
@@ -22,6 +28,13 @@ export class CelLightPass extends Pass {
   private readonly material: THREE.ShaderMaterial;
   private readonly layers = new THREE.Layers();
   private readonly hidden: THREE.Object3D[] = [];
+  private readonly savedClear = new THREE.Color();
+  /** Drawn last among the solid objects of the scene's own render (see the class comment). */
+  private readonly marker = new THREE.Group();
+  /** The copy of this frame's solid depth is in `target`. */
+  private depthCopied = false;
+  /** null: not yet tried; false: the copy failed once and the pass draws the depth itself. */
+  private copyWorks: boolean | null = null;
 
   constructor(private readonly scene: THREE.Scene, private readonly camera: THREE.Camera) {
     super();
@@ -57,39 +70,90 @@ export class CelLightPass extends Pass {
           gl_FragColor = vec4(base.rgb + drawn, base.a);
         }`,
     });
+    // A full-screen composite: no depth test (see InkEdgePass).
+    this.material.depthTest = false;
+    this.material.depthWrite = false;
     this.quad = new FullScreenQuad(this.material);
     this.layers.set(CEL_LIGHT_LAYER);
     this.enabled = false;           // the world enables it while spell light is in the air
+
+    // The marker: an empty mesh (it draws nothing) in a group ordered after every other solid object.
+    const probe = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial());
+    probe.frustumCulled = false;
+    probe.name = 'Cel light depth marker';
+    probe.onBeforeRender = (renderer) => this.copySolidDepth(renderer);
+    this.marker.renderOrder = Number.MAX_SAFE_INTEGER;
+    this.marker.name = 'Cel light depth marker';
+    this.marker.add(probe);
+    scene.add(this.marker);
   }
 
   setSize(width: number, height: number): void {
     this.target.setSize(width, height);
   }
 
+  /** The scene's render reached the marker: every solid object is drawn, nothing transparent yet. */
+  private copySolidDepth(renderer: THREE.WebGLRenderer): void {
+    if (!this.enabled || this.copyWorks === false) return;
+    const from = renderer.getRenderTarget();
+    if (!from || from === this.target || from.width !== this.target.width || from.height !== this.target.height) return;
+    const gl = renderer.getContext();
+    if (!(gl instanceof WebGL2RenderingContext)) { this.copyWorks = false; return; }
+    const properties = renderer.properties;
+    const source = (properties.get(from) as { __webglFramebuffer?: WebGLFramebuffer }).__webglFramebuffer;
+    let destination = (properties.get(this.target) as { __webglFramebuffer?: WebGLFramebuffer }).__webglFramebuffer;
+    if (!source || Array.isArray(source)) return;
+    if (!destination) {
+      // The target's framebuffer is made the first time it is bound; bind it once, then return.
+      renderer.setRenderTarget(this.target);
+      renderer.setRenderTarget(from);
+      destination = (properties.get(this.target) as { __webglFramebuffer?: WebGLFramebuffer }).__webglFramebuffer;
+      if (!destination) return;
+    }
+    // Errors left over from earlier calls must not be mistaken for the copy's own (checked once).
+    if (this.copyWorks === null) for (let i = 0; i < 8 && gl.getError() !== gl.NO_ERROR; i++);
+    const state = renderer.state;
+    state.bindFramebuffer(gl.READ_FRAMEBUFFER, source);
+    state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, destination);
+    gl.blitFramebuffer(0, 0, from.width, from.height, 0, 0, from.width, from.height, gl.DEPTH_BUFFER_BIT, gl.NEAREST);
+    state.bindFramebuffer(gl.READ_FRAMEBUFFER, null);
+    state.bindFramebuffer(gl.DRAW_FRAMEBUFFER, source);
+    if (this.copyWorks === null) {
+      // Checked once: a driver that refuses the copy keeps the original depth pass for good.
+      this.copyWorks = gl.getError() === gl.NO_ERROR;
+      if (!this.copyWorks) return;
+    }
+    this.depthCopied = true;
+  }
+
   render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget): void {
     const camLayers = this.camera.layers.mask;
     const background = this.scene.background;
     const override = this.scene.overrideMaterial;
-    const clear = renderer.getClearColor(new THREE.Color());
+    const clear = renderer.getClearColor(this.savedClear);
     const alpha = renderer.getClearAlpha();
     const autoClear = renderer.autoClear;
     renderer.autoClear = false;     // the light must land on the depth laid down before it
     renderer.setRenderTarget(this.target);
     renderer.setClearColor(0x000000, 0);
-    renderer.clear(true, true, true);
     this.scene.background = null;
-    // What stands in front hides the light: lay down the depth of everything solid first (not the
-    // mist, the halos or the particles, which light passes through).
-    this.scene.traverseVisible((o) => {
-      const m = (o as THREE.Mesh).material as THREE.Material | undefined;
-      if ((o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite || (m && !Array.isArray(m) && (m.transparent || !m.depthWrite))) this.hidden.push(o);
-    });
-    for (const o of this.hidden) o.visible = false;
-    this.scene.overrideMaterial = this.depthOnly;
-    renderer.render(this.scene, this.camera);
-    this.scene.overrideMaterial = override;
-    for (const o of this.hidden) o.visible = true;
-    this.hidden.length = 0;
+    if (this.depthCopied) {
+      renderer.clear(true, false, false);
+    } else {
+      renderer.clear(true, true, true);
+      // What stands in front hides the light: lay down the depth of everything solid first.
+      this.scene.traverseVisible((o) => {
+        const m = (o as THREE.Mesh).material as THREE.Material | undefined;
+        if ((o as THREE.Points).isPoints || (o as THREE.Sprite).isSprite || (m && !Array.isArray(m) && (m.transparent || !m.depthWrite))) this.hidden.push(o);
+      });
+      for (const o of this.hidden) o.visible = false;
+      this.scene.overrideMaterial = this.depthOnly;
+      renderer.render(this.scene, this.camera);
+      this.scene.overrideMaterial = override;
+      for (const o of this.hidden) o.visible = true;
+      this.hidden.length = 0;
+    }
+    this.depthCopied = false;
     // Then only the spells' light.
     this.camera.layers.mask = this.layers.mask;
     renderer.render(this.scene, this.camera);
@@ -104,6 +168,9 @@ export class CelLightPass extends Pass {
   }
 
   dispose(): void {
+    this.marker.removeFromParent();
+    (this.marker.children[0] as THREE.Mesh).geometry.dispose();
+    ((this.marker.children[0] as THREE.Mesh).material as THREE.Material).dispose();
     this.target.dispose();
     this.material.dispose();
     this.depthOnly.dispose();

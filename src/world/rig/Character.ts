@@ -144,6 +144,12 @@ export class Character {
     u.uMist.value = design.mist ?? 0.5;
     const built = instantiate(b.geometry, b.root, b.names, material);
     this.mesh = built.mesh;
+    // three.js would size a skinned mesh for culling by skinning every vertex on the CPU the first
+    // time it is tested (tens of milliseconds for a full body, a hitch at every spawn). The bind
+    // pose's sphere, grown to cover a limb's full swing, culls just as well.
+    if (!b.geometry.boundingSphere) b.geometry.computeBoundingSphere();
+    this.mesh.boundingSphere = b.geometry.boundingSphere!.clone();
+    this.mesh.boundingSphere.radius *= 1.6;
     if (DRAWN_LOOK) {
       // The inked line, bound to the same skeleton so it follows every drawing.
       const line = new THREE.SkinnedMesh(b.geometry, inkLineMaterial(u));

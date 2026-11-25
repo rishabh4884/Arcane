@@ -90,7 +90,9 @@ export class LoadingScreen {
     if (!g) return;
     const motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8, s: 0.01 + Math.random() * 0.03, p: Math.random() * 6 }));
     const frame = (time: number) => {
-      const w = (c.width = c.clientWidth * devicePixelRatio), h = (c.height = c.clientHeight * devicePixelRatio);
+      // Resizing a canvas reallocates it; only do so when the screen actually changed size.
+      const w = Math.round(c.clientWidth * devicePixelRatio), h = Math.round(c.clientHeight * devicePixelRatio);
+      if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
       g.clearRect(0, 0, w, h);
       for (const m of motes) {
         m.y -= m.s * 0.01;

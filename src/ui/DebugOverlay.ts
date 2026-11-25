@@ -18,6 +18,8 @@ export class DebugOverlay {
   private readonly wrap = el('div', { class: 'debug', hidden: true }, this.canvas);
   private readonly ctx = this.canvas.getContext('2d')!;
   private visible = false;
+  /** One line about the renderer (frame rate, quality level), shown under the tracking stats. */
+  renderInfo: (() => string) | null = null;
 
   constructor(root: HTMLElement) {
     root.append(this.wrap);
@@ -54,6 +56,7 @@ export class DebugOverlay {
     g.fillText(`cam ${cameraFps}/${stats.requestedFps} · det ${stats.fps.toFixed(0)} · ${stats.inferenceMs.toFixed(0)}ms`, 8, 14);
     g.fillText(`raw ${stats.detectedHands} · live ${out.hands.length} · age ${stats.resultAgeMs.toFixed(0)}ms`, 8, 28);
     g.fillText(`${stats.delegate} · L ${pose('left')} · R ${pose('right')}`, 8, 42);
+    if (this.renderInfo) g.fillText(this.renderInfo(), 8, 56);
 
     for (const hand of out.hands) {
       const x0 = hand.side === 'left' ? 6 : 126;

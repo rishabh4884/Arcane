@@ -292,6 +292,8 @@ export class Game {
   /** Development hooks. */
   debug() {
     return {
+      /** Leave the loading screen as the Enter button does (opens the camera). */
+      enter: () => this.enter(),
       play: (id: number) => { const l = levelById(id); if (l) this.startLevel(l); },
       scene: async (id: string) => { const s = SCRIPTS[id]; if (s) { this.hideScreens(); this.setBody('cutscene'); await this.cutscenes.play(s); this.toMenu(); } },
       win: () => { this.progress.complete(this.level!, 10, 0); },

@@ -4,6 +4,7 @@ type InitMessage = {
   type: 'init';
   wasmRoots: string[];
   modelBuffer: ArrayBuffer;
+  delegates?: Array<'GPU' | 'CPU'>;
 };
 
 type FrameMessage = {
@@ -39,37 +40,65 @@ scope.onmessage = async ({ data }) => {
   }
 
   if (data.type === 'frame') {
-    if (!landmarker) {
-      data.frame.close();
-      scope.postMessage({ type: 'error', message: 'Hand model is not ready.' });
-      return;
+    // Only the newest frame waits: one that arrives while another is waiting replaces it.
+    if (waiting) {
+      waiting.frame.close();
+      scope.postMessage({ type: 'dropped' });
     }
-    const started = performance.now();
-    try {
-      const result = landmarker.detectForVideo(data.frame, data.timestamp);
-      scope.postMessage({
-        type: 'result',
-        timestamp: data.timestamp,
-        aspect: data.aspect,
-        inferenceMs: performance.now() - started,
-        landmarks: result.landmarks.map((hand) => hand.map(({ x, y, z }) => ({ x, y, z }))),
-        handedness: result.handedness.map((categories) => categories[0]
-          ? { categoryName: categories[0].categoryName, score: categories[0].score }
-          : null),
-      });
-    } catch (error) {
-      scope.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) });
-    } finally {
-      data.frame.close();
+    waiting = data;
+    if (!working) {
+      working = true;
+      setTimeout(drain, 0);
     }
   }
 };
 
-async function initialize({ wasmRoots, modelBuffer }: InitMessage): Promise<void> {
+let waiting: FrameMessage | null = null;
+let working = false;
+
+function drain(): void {
+  const job = waiting;
+  waiting = null;
+  if (!job) {
+    working = false;
+    return;
+  }
+  infer(job);
+  // Yield, so frames that arrived during that inference are seen and only the newest is taken next.
+  setTimeout(drain, 0);
+}
+
+function infer(data: FrameMessage): void {
+  if (!landmarker) {
+    data.frame.close();
+    scope.postMessage({ type: 'error', message: 'Hand model is not ready.' });
+    return;
+  }
+  const started = performance.now();
+  try {
+    const result = landmarker.detectForVideo(data.frame, data.timestamp);
+    scope.postMessage({
+      type: 'result',
+      timestamp: data.timestamp,
+      aspect: data.aspect,
+      inferenceMs: performance.now() - started,
+      landmarks: result.landmarks.map((hand) => hand.map(({ x, y, z }) => ({ x, y, z }))),
+      handedness: result.handedness.map((categories) => categories[0]
+        ? { categoryName: categories[0].categoryName, score: categories[0].score }
+        : null),
+    });
+  } catch (error) {
+    scope.postMessage({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+  } finally {
+    data.frame.close();
+  }
+}
+
+async function initialize({ wasmRoots, modelBuffer, delegates = ['GPU', 'CPU'] }: InitMessage): Promise<void> {
   scope.dbg ??= (...args) => console.debug(...args);
   let lastError: unknown;
   for (const wasmRoot of wasmRoots) {
-    for (const delegate of ['GPU', 'CPU'] as const) {
+    for (const delegate of delegates) {
       try {
         // Module workers cannot call importScripts. MediaPipe 0.10.35 has a dedicated
         // module-WASM loader path for this use case.

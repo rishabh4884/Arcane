@@ -34,3 +34,6 @@ art/build/
 __pycache__/
 *.blend1
 *.blend2
+
+# Local benchmark output (tools/bench-headless.mjs)
+bench-results/

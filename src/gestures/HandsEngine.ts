@@ -22,6 +22,12 @@ import type { PoseName } from './poses.ts';
 const NO_SUPPRESS: ReadonlySet<PoseName> = new Set();
 
 const WINDOW_MS = 1700;
+/**
+ * A hand counts as gone after `tuning.lostGraceMs` unseen, or after three of the tracker's results
+ * when they come more slowly than that allows (one missed result, and some jitter, must not reset a
+ * sign half held), up to this.
+ */
+const LOST_GRACE_MAX_MS = 450;
 
 const IDLE: EngineOutput = {
   present: false,
@@ -54,6 +60,9 @@ export class HandsEngine {
   private dualStillSince = 0;
   private dualLatched: PoseName | null = null;
   private lastDualAt = -Infinity;
+  /** When the last tracker result arrived, and the recent gaps between results. */
+  private lastResultAt = -Infinity;
+  private readonly gaps: number[] = [];
   private lastPoses: { left: PoseName; right: PoseName } = { left: 'unknown', right: 'unknown' };
   private bowWasEngaged = false;
 
@@ -92,8 +101,24 @@ export class HandsEngine {
     this.bowWasEngaged = false;
   }
 
+  /** The tracker's recent time between results (median of the last few), in ms. */
+  private resultInterval(now: number): number {
+    const gap = now - this.lastResultAt;
+    this.lastResultAt = now;
+    // Gaps of a second or more are pauses (a hidden tab, a stalled camera), not the tracker's pace.
+    if (gap > 0 && gap < 1000) {
+      this.gaps.push(gap);
+      if (this.gaps.length > 9) this.gaps.shift();
+    }
+    if (!this.gaps.length) return 1000 / 30;
+    const sorted = this.gaps.slice().sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  }
+
   process(frames: readonly HandFrame[], now: number): EngineOutput {
-    const bound = this.binder.bind(frames, now, this.tuning.lostGraceMs);
+    const frameMs = this.resultInterval(now);
+    const graceMs = Math.min(LOST_GRACE_MAX_MS, Math.max(this.tuning.lostGraceMs, frameMs * 3));
+    const bound = this.binder.bind(frames, now, graceMs);
     // When both hands already hold the same shape and a two-hand sign wants it, the single-hand
     // gestures for that shape stand down so a double fist is one Blood Pact, not two fists + a pact.
     const suppress = this.suppressedPoses(!!bound.left && !!bound.right);
@@ -104,11 +129,13 @@ export class HandsEngine {
       suppressPoses: suppress,
       suppressPointing: intent === 'left-aims',
       suppressHolds: intent === 'right-aims',
+      graceMs, frameMs,
     });
     const R = this.right.process(bound.right, now, {
       suppressPoses: suppress,
       suppressPointing: intent === 'right-aims',
       suppressHolds: intent === 'left-aims',
+      graceMs, frameMs,
     });
     if (L.present) this.lastPoses.left = L.pose;
     if (R.present) this.lastPoses.right = R.pose;
@@ -169,7 +196,7 @@ export class HandsEngine {
       }
       if (shared !== 'unknown' && shared !== this.dualLatched) this.dualLatched = null;
     } else {
-      if (now - this.lastDualAt > this.tuning.lostGraceMs) {
+      if (now - this.lastDualAt > graceMs) {
         this.dual = [];
         this.dualPose = 'unknown';
         this.dualLatched = null;

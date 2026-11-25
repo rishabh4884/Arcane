@@ -8,6 +8,9 @@ import { terrainHeight } from '../world/spatial.ts';
 import { glowSprite, Trail } from '../world/vfx.ts';
 import type { Stage, World } from '../world/World.ts';
 
+/** `?nocutscenes` (or a benchmark run) skips every scene. */
+const SKIP_ALL = typeof location !== 'undefined' && ((p) => p.has('nocutscenes') || p.has('bench'))(new URLSearchParams(location.search));
+
 /**
  * CUTSCENES
  * ─────────
@@ -167,8 +170,11 @@ export class CutscenePlayer {
   private readonly title = document.createElement('div');
   private readonly fade = document.createElement('div');
   private readonly next = document.createElement('button');
+  private readonly skip = document.createElement('button');
   private readonly progress = document.createElement('span');
   private playing = false;
+  /** Ends the scene that is playing (Skip, Escape). */
+  private finishNow: (() => void) | null = null;
 
   constructor(private readonly world: World, private readonly onUi?: (kind: 'select' | 'story') => void) {
     this.el.className = 'cutscene';
@@ -183,16 +189,30 @@ export class CutscenePlayer {
     this.next.type = 'button';
     this.next.textContent = 'Continue';
     this.next.hidden = true;
+    // Any scene can be skipped: a quiet button in the corner, or Escape.
+    this.skip.className = 'cut-skip';
+    this.skip.type = 'button';
+    this.skip.textContent = 'Skip';
+    this.skip.setAttribute('aria-label', 'Skip this scene (Esc)');
+    this.skip.onclick = () => { this.onUi?.('select'); this.finishNow?.(); };
     this.progress.className = 'cut-progress';
     bottom.append(this.progress);
-    this.el.append(top, bottom, this.lines, this.title, this.fade, this.next);
+    this.el.append(top, bottom, this.lines, this.title, this.fade, this.next, this.skip);
     document.body.append(this.el);
+    window.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || event.repeat || !this.playing || !this.finishNow) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.finishNow();
+    }, { capture: true });
   }
 
   get active(): boolean { return this.playing; }
 
   play(script: Script): Promise<void> {
     if (this.playing) return Promise.resolve();
+    // `?nocutscenes` (and benchmark runs) go straight from level to level.
+    if (SKIP_ALL) return Promise.resolve();
     this.playing = true;
     document.body.classList.add('is-cutscene');
     this.el.hidden = false;
@@ -215,7 +235,11 @@ export class CutscenePlayer {
     let titleShown = false;
     let ended = false;
     return new Promise((resolve) => {
+      let finished = false;
       const finish = () => {
+        if (finished) return;
+        finished = true;
+        this.finishNow = null;
         cancelAnimationFrame(raf);
         this.next.hidden = true;
         this.fade.style.opacity = '1';
@@ -231,6 +255,7 @@ export class CutscenePlayer {
         }, 650);
       };
       this.next.onclick = () => { this.onUi?.('select'); finish(); };
+      this.finishNow = finish;
       const loop = () => {
         const now = performance.now();
         const dt = Math.min(0.05, (now - last) / 1000);
@@ -277,7 +302,7 @@ export class CutscenePlayer {
       };
       // Held in black until the scene's backgrounds are in.
       this.fade.style.opacity = '1';
-      void backgrounds.then(() => { last = performance.now(); loop(); });
+      void backgrounds.then(() => { if (finished) return; last = performance.now(); loop(); });
     });
   }
 }

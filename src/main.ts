@@ -48,6 +48,11 @@ const tracker = new HandTracker(tuning.cameraFps);
 const hudRoot = qs('#hud');
 const hud = new Hud(hudRoot, book);
 const debug = new DebugOverlay(hudRoot);
+debug.renderInfo = () => {
+  const q = world.quality();
+  const gpu = q.gpuMs !== null ? ` · gpu ${q.gpuMs.toFixed(1)}ms` : '';
+  return `${q.fps.toFixed(0)} fps · ${q.mode} ${q.rung + 1}/${q.rungs} · ${q.ratio}x${gpu}`;
+};
 const soundButton = el('button', { class: 'sound-tool', type: 'button', onclick: () => audio.toggleMuted() });
 const renderSound = () => {
   soundButton.textContent = audio.muted ? 'Sound off' : 'Sound on';
@@ -69,6 +74,7 @@ const settings = new SettingsPanel(document.body, {
   tuning,
   defaults: DEFAULT_TUNING,
   isDebugVisible: () => debug.isVisible,
+  graphics: { mode: () => world.graphicsMode, set: (mode) => world.setGraphics(mode) },
   onDebug: (v) => debug.setVisible(v),
   onTuning: (t) => {
     const previousCameraFps = tuning.cameraFps;
@@ -180,11 +186,29 @@ async function prefetchModel(step: (f: number, label: string) => void): Promise<
   }
 }
 
-const game = new Game({ world, audio, book, settings, hudRoot, startCamera: () => tracker.start() });
+// Once the camera tracks hands, the renderer leaves room on the GPU for the hand model.
+const game = new Game({ world, audio, book, settings, hudRoot, startCamera: () => tracker.start().then(() => world.setCameraActive(true, tracker.usesGpu)) });
+// Hand tracking that moves off the page (see HandTracker) may free the GPU for the game.
+tracker.onInferenceMoved = (usesGpu) => world.setCameraActive(true, usesGpu);
 const boot = game.boot(async (step) => {
   await world.warmup(step);
   await prefetchModel(step);
 });
+
+// `?bench`: an automated performance run on any device (see src/dev/bench.ts). Loaded only when asked.
+if (new URLSearchParams(location.search).has('bench')) {
+  void boot.then(async () => {
+    const { runBench } = await import('./dev/bench.ts');
+    await runBench({
+      world, book, tracker, cast,
+      game: game.debug(),
+      feed: (hands, timestamp) => handle(engine.process(hands, timestamp), {
+        fps: 30, cameraFps: 30, requestedFps: 30, detectedHands: hands.length, inferenceMs: 0, resultAgeMs: 0,
+        lateResults: 0, timestamp, delegate: 'main-thread',
+      }),
+    });
+  });
+}
 
 // Development-only console hooks for checking levels, scenes and spells without a camera.
 if (import.meta.env.DEV) {

@@ -15,7 +15,9 @@ import { WOODLAND_MODELS } from './Woodland.ts';
 import { INK } from './render/InkPaint.ts';
 import { tagSpellLight } from './render/CelLightPass.ts';
 import { preloadModels } from './render/models.ts';
-import { FrameBudget } from './FrameBudget.ts';
+import { QualityGovernor, ladderFor, rungFor, startingRung, type GraphicsMode, type QualityLevel } from './Quality.ts';
+import { GpuTimer } from './render/GpuTimer.ts';
+import { loadJSON, saveJSON } from '../storage.ts';
 import { CasterView, worldInputBlocked } from './CasterView.ts';
 import { SPELL_RANGE, chooseRayTarget, screenPointAtDepth, terrainHeight } from './spatial.ts';
 import { disposeGroup, type ScreenFeedback } from './vfx.ts';
@@ -30,6 +32,8 @@ import { DESIGNS } from './characters/index.ts';
 import { prepareBodies } from './rig/bakery.ts';
 import { publishPaintedLights, spellFlashLevel, type PaintedLight } from './SpellLight.ts';
 import { Character } from './rig/Character.ts';
+import { CursorGlide } from './cursorGlide.ts';
+import { SPELLS } from '../config/spells.ts';
 
 /**
  * The moon behind the wood casts every creature's shadow long across the ground toward the caster.
@@ -96,6 +100,8 @@ interface Wisp {
   /** Resting colour; the left wisp is a touch cooler so the two hands read apart. */
   baseTint: THREE.Color;
   target: THREE.Vector3;
+  /** Carries the marker on between tracking results (see CursorGlide). */
+  glide: CursorGlide;
 }
 
 interface StuckArrow {
@@ -109,6 +115,9 @@ interface StuckArrow {
 interface PooledLight { light: THREE.PointLight; paint: PaintedLight; age: number; duration: number; peak: number }
 
 const CURSOR_DEPTH = 7;
+const GRAPHICS_KEY = 'arcane.graphics.v1';
+const DEVICE_QUALITY_KEY = 'arcane.quality.v1';
+const GRAPHICS_MODES: readonly GraphicsMode[] = ['auto', 'high', 'balanced', 'low'];
 const LABEL_LIFETIME = 1.8;
 const SIDES: HandSide[] = ['left', 'right'];
 const LEFT_TINT = '#b9dcff';
@@ -127,7 +136,22 @@ export class World {
   private readonly environment: ForestEnvironment;
   private readonly controls: CasterView;
   private readonly reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  private readonly budget = new FrameBudget(Math.min(window.devicePixelRatio || 1, 2), 2);
+  /** The screen's own density, and the quality ladder it allows (see Quality.ts). */
+  private readonly deviceRatio = window.devicePixelRatio || 1;
+  private readonly ladder = customLevel() ?? ladderFor(this.deviceRatio);
+  private readonly governor: QualityGovernor;
+  private readonly gpuTimer: GpuTimer;
+  private graphics: GraphicsMode = 'auto';
+  /** Identifies this device and screen for the remembered quality level. */
+  private deviceKey = '';
+  private savedRung = -1;
+  private qualityCheck = 0;
+  /** Smoothed frames per second, for the debug view. */
+  private fpsAverage = 60;
+  /** True while the loading screen compiles and builds: those frames say nothing about play. */
+  private warming = false;
+  private moonCatcher: THREE.Object3D | null = null;
+  private readonly postAllowed = new URLSearchParams(window.location.search).get('post') !== '0';
   private readonly particles: ParticleSystem;
   private readonly mist: ParticleSystem;
   private readonly post: PostFX;
@@ -144,6 +168,7 @@ export class World {
   private readonly clock = new THREE.Clock();
   private readonly scratch = new THREE.Vector3();
   private readonly mid = new THREE.Vector3();
+  private readonly glidePoint = { x: 0, y: 0 };
   private readonly basePosition = new THREE.Vector3();
   private readonly baseQuaternion = new THREE.Quaternion();
   private readonly shakeEuler = new THREE.Euler();
@@ -152,7 +177,6 @@ export class World {
 
   private idleTime = 0;
   private trauma = 0;
-  private slowSamples = 0;
   private raf = 0;
   private running = false;
   private disposed = false;
@@ -188,13 +212,34 @@ export class World {
   private darkLevel = 0;
   /** Seconds of hit-stop left: time nearly halts for a beat when a heavy blow lands. */
   private hitStop = 0;
+  /** Each spell's floating name, drawn once (a blurred canvas and a 1 MB upload) and reused. */
+  private readonly labelTextures = new Map<string, THREE.Texture>();
+  /** Shader programs already held for the life of the game (see pinPrograms). */
+  private readonly pinned = new WeakSet<object>();
+  private pinnedCount = 0;
+  /** One material per custom shader, kept so three.js keeps that shader's id (see pinPrograms). */
+  private readonly keptMaterials: THREE.Material[] = [];
 
   constructor(container: HTMLElement) {
     this.container = container;
-    const pixelRatio = this.budget.ratio;
-
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // The canvas's own multisampling is wasted when the post stack draws the frame (it anti-aliases
+    // with SMAA and the canvas only receives a full-screen quad); it stays for `?post=0`.
+    this.renderer = new THREE.WebGLRenderer({ antialias: !this.postAllowed, powerPreference: 'high-performance' });
+    this.gpuTimer = new GpuTimer(this.renderer.getContext());
+    this.graphics = readGraphicsMode();
+    this.deviceKey = deviceKey(this.renderer);
+    this.savedRung = loadJSON<Record<string, number>>(DEVICE_QUALITY_KEY)?.[this.deviceKey] ?? -1;
+    const phone = window.matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
+    const auto = this.savedRung >= 0 ? this.savedRung : startingRung(this.ladder, phone);
+    this.governor = new QualityGovernor(this.ladder, rungFor(this.graphics, this.ladder, auto), this.graphics !== 'auto');
+    // `?rung=N` holds one rung of the ladder (benchmarks and comparisons).
+    const forcedRung = new URLSearchParams(window.location.search).get('rung');
+    if (forcedRung !== null && Number.isFinite(Number(forcedRung))) { this.governor.set(Number(forcedRung)); this.governor.fixed = true; }
+    const pixelRatio = this.governor.level.ratio;
     this.renderer.setPixelRatio(pixelRatio);
+    // Checking every compiled shader for errors forces each compile to finish synchronously (and
+    // stalls the frame on browsers with slow shader compilers). Development keeps the checks.
+    this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
     this.renderer.setClearColor('#83bdb5');
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     // The illustrated world is authored untonemapped; the post grade rolls off only the highlights.
@@ -212,7 +257,9 @@ export class World {
     this.particles = new ParticleSystem(5000, pixelRatio);
     this.mist = new ParticleSystem(1500, pixelRatio, THREE.NormalBlending);
     this.scene.add(this.particles.points, this.mist.points);
-    this.scene.add(...createMoonShadows());
+    const moon = createMoonShadows();
+    this.moonCatcher = moon.find((o) => o.name === 'Moon shadow catcher') ?? null;
+    this.scene.add(...moon);
     this.regions = new Regions(this.environment, this.particles, this.mist);
     this.scene.add(this.regions.group);
     // A fixed pool of spell lights: adding or removing lights would recompile every lit shader.
@@ -235,6 +282,7 @@ export class World {
     const params = new URLSearchParams(window.location.search);
     this.post = new PostFX(this.renderer, this.scene, this.camera, params.get('post') !== '0', AUTHORED_WORLD || PAINTED_WORLD, DRAWN_LOOK);
     INK.uPaintedAir.value = PAINTED_WORLD ? 1 : 0;
+    this.applyQuality();
 
     this.wisps = {
       left: this.makeWisp('left'),
@@ -271,13 +319,7 @@ export class World {
       if (!this.running) return;
       this.raf = requestAnimationFrame(loop);
       const elapsed = this.clock.getDelta();
-      const ratio = this.budget.sample(elapsed);
-      if (ratio !== null) {
-        this.renderer.setPixelRatio(ratio);
-        this.resize();
-        // Still slow at the lowest resolution: drop bloom before dropping frames.
-        if (ratio <= 0.76 && this.post.enabled && ++this.slowSamples >= 2) this.post.setEnabled(false);
-      }
+      this.steerQuality(elapsed);
       // Bounded substeps preserve seconds of gameplay at variable render rates.
       // Hit-stop slows the world, not the render: the camera and its breath keep moving.
       const slow = this.hitStop > 0 ? 0.12 : 1;
@@ -300,10 +342,11 @@ export class World {
     this.environment.dispose();
     for (const label of this.labels) {
       this.scene.remove(label.sprite);
-      label.sprite.material.map?.dispose();
       label.sprite.material.dispose();
     }
     this.labels.length = 0;
+    for (const texture of this.labelTextures.values()) texture.dispose();
+    this.labelTextures.clear();
     for (const side of SIDES) {
       this.wisps[side].marker.traverse((object) => {
         if (object instanceof THREE.Mesh) object.geometry.dispose();
@@ -322,6 +365,7 @@ export class World {
     this.spellAnimations.length = 0;
     this.foreground.dispose();
     this.post.dispose();
+    this.gpuTimer.dispose();
     this.screenFx.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -329,7 +373,11 @@ export class World {
 
   /** Palm positions on screen (0..1). Missing sides fade out in place so the marker never jumps. */
   setCursors(cursors: Partial<Record<HandSide, { x: number; y: number } | null>>): void {
-    for (const side of SIDES) this.wisps[side].cursor = cursors[side] ?? null;
+    const now = performance.now();
+    for (const side of SIDES) {
+      this.wisps[side].cursor = cursors[side] ?? null;
+      this.wisps[side].glide.push(cursors[side] ?? null, now);
+    }
   }
 
   /**
@@ -366,6 +414,11 @@ export class World {
    * first wave does not hitch while the GPU learns them.
    */
   async warmup(step: (fraction: number, label: string) => void): Promise<void> {
+    this.warming = true;
+    try { await this.warmupSteps(step); } finally { this.warming = false; this.governor.reset(1.5); }
+  }
+
+  private async warmupSteps(step: (fraction: number, label: string) => void): Promise<void> {
     // A frame, or a moment if the tab is in the background (where frames stop): loading must not stall.
     const frame = () => new Promise<void>((r) => { let done = false; const go = () => { if (!done) { done = true; r(); } }; requestAnimationFrame(go); window.setTimeout(go, 60); });
     step(0.08, 'Painting the wood…');
@@ -388,7 +441,124 @@ export class World {
       await frame();
     }
     this.renderer.compile(this.scene, this.camera);
+    this.pinPrograms();
     for (const c of figures) c.dispose();
+    await this.rehearseSpells((f) => step(0.7 + f * 0.06, 'Rehearsing the old spells…'), frame);
+  }
+
+  /**
+   * Keep every shader program the game has compiled for as long as the game runs. three.js frees a
+   * program when the last material using it is disposed, and every spell and creature disposes its
+   * materials when it ends, so the same spell compiled its shaders again on the next cast: a visible
+   * stall each time, up to a second on browsers whose shader compiler is slow (Chrome on Windows,
+   * most phones). Holding one reference to each program turns every later cast into a cache hit.
+   *
+   * A custom shader also needs one of its materials kept: three.js names a shader's source by an id
+   * that it forgets when the last material using that source is disposed, and a new id means a new
+   * program however identical the source. One kept material per shader keeps the id, and the program.
+   */
+  private pinPrograms(): void {
+    const programs = this.renderer.info.programs;
+    if (!programs || programs.length === this.pinnedCount) return;
+    const fresh = new Set<object>();
+    for (const program of programs) {
+      if (this.pinned.has(program)) continue;
+      // A safety cap: a shader generated differently on every use must not grow the cache forever.
+      if (this.pinnedCount >= 600) break;
+      this.pinned.add(program);
+      (program as unknown as { usedTimes: number }).usedTimes++;
+      this.pinnedCount++;
+      fresh.add(program);
+    }
+    if (!fresh.size) return;
+    // The programs were used this frame, so their materials are in the scene now.
+    this.scene.traverse((object) => {
+      const material = (object as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (!material || !fresh.size) return;
+      for (const m of Array.isArray(material) ? material : [material]) {
+        if (!(m as THREE.ShaderMaterial).isShaderMaterial) continue;
+        const program = (this.renderer.properties.get(m) as { currentProgram?: object }).currentProgram;
+        if (!program || !fresh.delete(program)) continue;
+        // Its owner may dispose it as usual; three.js keeps it, and with it the shader's id.
+        m.dispose = () => undefined;
+        this.keptMaterials.push(m);
+      }
+    });
+  }
+
+  /**
+   * Behind the loading screen, play every spell once, out of sight, through the whole drawing
+   * pipeline (cel light included), so no spell compiles a shader the first time it is cast in a fight.
+   */
+  private async rehearseSpells(step: (fraction: number) => void, frame: () => Promise<void>): Promise<void> {
+    const effects = [...new Set(SPELLS.map((s) => s.effect))];
+    const quiet: ScreenFeedback = { flash: () => undefined, shake: () => undefined };
+    this.camera.updateMatrixWorld(true);
+    const origin = this.castOrigin().clone();
+    const target = new THREE.Vector3();
+    screenPointAtDepth(this.camera, 0.5, 0.62, 12, target);
+    target.y = terrainHeight(target.x, target.z);
+    const cameraTarget = target.clone().applyMatrix4(this.camera.matrixWorldInverse);
+    const lightningStart = new THREE.Vector3();
+    screenPointAtDepth(this.camera, 0.5, 0.015, Math.max(0.5, -cameraTarget.z), lightningStart);
+    const rehearsal: SpellAnimation[] = [];
+    const extras: THREE.Object3D[] = [];
+    let labels: THREE.Group | null = null;
+    try {
+      for (const effect of effects) {
+        const spell = SPELLS.find((s) => s.effect === effect)!;
+        const color = new THREE.Color(spell.color);
+        const animation = createSpellAnimation(effect, origin, target.clone(), color, effect === 'arrow' ? '90% draw' : 'left', {
+          groundY: target.y, cameraQuaternion: this.camera.quaternion, cameraPosition: this.camera.position,
+          lightningStart: effect === 'lightning' ? lightningStart : undefined,
+          depth: Math.max(0.5, -cameraTarget.z), hand: 'right', fov: this.camera.fov, particles: this.particles, mist: this.mist,
+          screen: quiet, light: () => undefined, illuminate: () => undefined,
+        });
+        this.scene.add(animation.group);
+        rehearsal.push(animation);
+      }
+      // What a cast leaves behind: an arrow standing in its target and the spell's name.
+      const { root } = createArrowMesh(new THREE.Color('#ff6f3c'));
+      root.position.copy(target);
+      extras.push(root);
+      this.scene.add(root);
+      // Every spell's name, drawn and uploaded now rather than on its first cast.
+      labels = new THREE.Group();
+      for (const spell of SPELLS) {
+        const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: this.labelTexture(spell.name, spell.color), transparent: true, depthWrite: false, depthTest: false, toneMapped: false }));
+        label.position.copy(target);
+        label.scale.setScalar(0.001);
+        labels.add(label);
+      }
+      this.scene.add(labels);
+      // Step every spell through its life, compiling whatever each new beat brings and drawing a
+      // frame now and then so the passes that only run while spell light is in the air warm up too.
+      const steps = 16;
+      for (let i = 0; i < steps; i++) {
+        for (const animation of rehearsal) animation.update(0.22);
+        let light = 0;
+        if (DRAWN_LOOK) for (const animation of rehearsal) light += tagSpellLight(animation.group);
+        this.scene.updateMatrixWorld(true);
+        if (typeof this.renderer.compileAsync === 'function') await this.renderer.compileAsync(this.scene, this.camera);
+        else this.renderer.compile(this.scene, this.camera);
+        if (i % 4 === 0 || i === steps - 1) {
+          this.post.setSpellLight(light > 0);
+          this.post.render(0, this.scene, this.camera);
+        }
+        this.pinPrograms();
+        step((i + 1) / steps);
+        await frame();
+      }
+    } catch (error) {
+      console.warn('[arcane] spell rehearsal skipped', error);
+    } finally {
+      for (const animation of rehearsal) { this.scene.remove(animation.group); animation.dispose(); }
+      for (const object of extras) { object.removeFromParent(); disposeGroup(object); }
+      labels?.removeFromParent();
+      labels?.children.forEach((label) => (label as THREE.Sprite).material.dispose());
+      this.particles.clear();
+      this.mist.clear();
+    }
   }
 
   startLevel(level: LevelDef, mood: Mood): void {
@@ -563,6 +733,73 @@ export class World {
     this.spellAnimations.push(animation);
   }
 
+  /* ─────────────────────────────── quality ─────────────────────────────── */
+
+  /** The player's graphics choice: 'auto' adapts to the device; the others hold a fixed level. */
+  get graphicsMode(): GraphicsMode { return this.graphics; }
+
+  setGraphics(mode: GraphicsMode): void {
+    if (!GRAPHICS_MODES.includes(mode)) return;
+    this.graphics = mode;
+    saveJSON(GRAPHICS_KEY, mode);
+    const auto = this.savedRung >= 0 ? this.savedRung : this.governor.index;
+    this.governor.fixed = mode !== 'auto';
+    this.governor.set(rungFor(mode, this.ladder, auto));
+    this.applyQuality();
+  }
+
+  /**
+   * The camera is tracking hands. Where its model runs on the GPU, it runs there every camera frame,
+   * so the renderer keeps more of each frame free for it (see QualityGovernor.gpuShare); where it
+   * runs on the CPU, the game may use the GPU as if the camera were off.
+   */
+  setCameraActive(active: boolean, modelOnGpu = true): void {
+    this.governor.gpuShare = active && modelOnGpu ? 0.6 : 0.85;
+  }
+
+  /** What the renderer is drawing at, for the debug view and benchmarks. */
+  quality(): { rung: number; rungs: number; mode: GraphicsMode; gpuMs: number | null; gpuTimer: boolean; fps: number } & QualityLevel {
+    return { rung: this.governor.index, rungs: this.ladder.length, mode: this.graphics, gpuMs: this.gpuTimer.ms, gpuTimer: this.gpuTimer.available, fps: this.fpsAverage, ...this.governor.level };
+  }
+
+  /** One frame of the quality governor: measure, maybe change level, remember a settled level. */
+  private steerQuality(elapsed: number): void {
+    const gpuMs = this.gpuTimer.poll();
+    if (elapsed > 0 && elapsed < 1) this.fpsAverage += (1 / elapsed - this.fpsAverage) * 0.05;
+    if (this.warming || document.hidden) { this.governor.reset(0.5); return; }
+    if (this.governor.sample(elapsed, gpuMs) !== null) this.applyQuality();
+    // A level held for a while is this device's level: start there next time.
+    this.qualityCheck += elapsed;
+    if (this.qualityCheck > 2 && this.graphics === 'auto') {
+      this.qualityCheck = 0;
+      if (this.governor.held > 8 && this.governor.index !== this.savedRung) {
+        this.savedRung = this.governor.index;
+        const saved = loadJSON<Record<string, number>>(DEVICE_QUALITY_KEY) ?? {};
+        saved[this.deviceKey] = this.savedRung;
+        saveJSON(DEVICE_QUALITY_KEY, saved);
+      }
+    }
+  }
+
+  private applyQuality(): void {
+    const level = this.governor.level;
+    if (Math.abs(this.renderer.getPixelRatio() - level.ratio) > 1e-3) {
+      this.renderer.setPixelRatio(level.ratio);
+      this.resize();
+    }
+    if (this.moonCatcher) {
+      // The catcher is the only surface that shows the moon's shadows here: hiding it and no longer
+      // drawing the map removes their whole cost. Switching shadow maps off outright would change
+      // every material's shader and recompile the scene, a stall of up to half a second.
+      this.renderer.shadowMap.autoUpdate = level.shadows;
+      this.moonCatcher.visible = level.shadows;
+    } else {
+      this.renderer.shadowMap.enabled = level.shadows;
+    }
+    this.post.setFeatures({ smaa: level.smaa, ink: level.ink });
+    this.post.setEnabled(level.post && this.postAllowed);
+  }
+
   /** Add camera trauma (0..1); shake falls off quadratically and decays in about half a second. */
   shake(amount: number): void {
     if (this.reducedMotion.matches) return;
@@ -689,12 +926,13 @@ export class World {
       chargeColor: new THREE.Color('#ffffff'),
       baseTint: new THREE.Color(tint),
       target: new THREE.Vector3(),
+      glide: new CursorGlide(),
     };
   }
 
   private spawnLabel(text: string, color: string, origin: THREE.Vector3): void {
     const material = new THREE.SpriteMaterial({
-      map: makeLabelTexture(text, color),
+      map: this.labelTexture(text, color),
       transparent: true,
       depthWrite: false,
       depthTest: false,
@@ -708,6 +946,13 @@ export class World {
     sprite.position.y += 0.9;
     this.scene.add(sprite);
     this.labels.push({ sprite, age: 0 });
+  }
+
+  private labelTexture(text: string, color: string): THREE.Texture {
+    const key = `${text}|${color}`;
+    let texture = this.labelTextures.get(key);
+    if (!texture) { texture = makeLabelTexture(text, color); this.labelTextures.set(key, texture); }
+    return texture;
   }
 
   private panFor(from?: HandSide | 'both'): number {
@@ -789,7 +1034,7 @@ export class World {
       l.sprite.material.opacity = Math.min(1, l.age / 0.12) * Math.max(0, 1 - Math.max(0, u - 0.45) / 0.55);
       if (u >= 1) {
         this.scene.remove(l.sprite);
-        l.sprite.material.map?.dispose();
+        // The texture is the spell's cached label; only the material is this label's own.
         l.sprite.material.dispose();
         this.labels.splice(i, 1);
       }
@@ -881,7 +1126,10 @@ export class World {
     let spellLight = 0;
     if (DRAWN_LOOK) for (const a of this.spellAnimations) spellLight += tagSpellLight(a.group);
     this.post.setSpellLight(spellLight > 0);
+    this.gpuTimer.begin();
     this.post.render(dt, this.scene, this.camera);
+    this.gpuTimer.end();
+    this.pinPrograms();
     this.camera.position.copy(this.basePosition);
     this.camera.quaternion.copy(this.baseQuaternion);
     this.camera.updateMatrixWorld(true);
@@ -894,9 +1142,12 @@ export class World {
    */
   private updateWisp(w: Wisp, dt: number): void {
     const has = w.cursor !== null;
-    if (has) this.cursorToWorld(w.cursor!, w.target);
-    // LandmarkSmoother already filters the camera signal. Keep only a short render-side
-    // interpolation so 30fps input looks fluid at 60fps without stacking another long lag.
+    // Between tracking results the marker carries on at the hand's own speed, so it moves on every
+    // drawn frame rather than at the tracker's pace (12-30 results a second, by device).
+    const shown = has ? w.glide.at(performance.now(), this.glidePoint) ?? w.cursor : null;
+    if (shown) this.cursorToWorld(shown, w.target);
+    // LandmarkSmoother already filters the camera signal. Keep only a short render-side easing that
+    // softens each result's correction without stacking another long lag.
     w.marker.position.lerp(w.target, 1 - Math.exp(-dt * (has ? 32 : 2)));
     w.marker.quaternion.copy(this.camera.quaternion);
     w.marker.scale.setScalar(0.6 + w.charge * 0.12);
@@ -911,6 +1162,8 @@ export class World {
   }
 
   private resize = (): void => {
+    // A new size changes what a frame costs: the governor starts its window again.
+    this.governor?.reset();
     const w = this.container.clientWidth || window.innerWidth;
     const h = this.container.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h);
@@ -922,4 +1175,34 @@ export class World {
     this.particles.setProjection(h, this.camera.fov, ratio);
     this.mist.setProjection(h, this.camera.fov, ratio);
   };
+}
+
+/**
+ * `?q=ratio,shadows,smaa,ink,post` (for example `?q=1,0,1,1,1`) holds one exact level: for isolating
+ * what each trade costs on a device. Only the URL can set it; it is never remembered.
+ */
+function customLevel(): QualityLevel[] | null {
+  const q = new URLSearchParams(window.location.search).get('q');
+  if (!q) return null;
+  const [ratio, shadows, smaa, ink, post] = q.split(',').map(Number);
+  if (!Number.isFinite(ratio) || ratio <= 0) return null;
+  const on = (v: number | undefined) => v === undefined || Number.isNaN(v) ? true : v !== 0;
+  return [{ ratio: Math.min(3, ratio), shadows: on(shadows), smaa: on(smaa), ink: on(ink), post: on(post) }];
+}
+
+function readGraphicsMode(): GraphicsMode {
+  const forced = new URLSearchParams(window.location.search).get('quality');
+  const value = forced ?? loadJSON<string>(GRAPHICS_KEY);
+  return GRAPHICS_MODES.includes(value as GraphicsMode) ? value as GraphicsMode : 'auto';
+}
+
+/** The GPU and screen this is: a remembered quality level belongs to that pairing. */
+function deviceKey(renderer: THREE.WebGLRenderer): string {
+  let gpu = 'unknown';
+  try {
+    const gl = renderer.getContext();
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+  } catch { /* some browsers hide the GPU; the screen alone still keys the level */ }
+  return `${gpu}|${screen.width}x${screen.height}@${window.devicePixelRatio || 1}`;
 }

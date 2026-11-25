@@ -66,7 +66,7 @@ describe('camera inference recovery', () => {
     vi.unstubAllGlobals();
   });
 
-  it('uses direct video inference by default and does not create an experimental worker', async () => {
+  it('starts with direct video inference on the page and creates no worker', async () => {
     const { HandTracker } = await import('../src/tracking/HandTracker.ts');
     const tracker = new HandTracker(60);
     await tracker.start();
@@ -101,6 +101,66 @@ describe('camera inference recovery', () => {
       expect.objectContaining({ detectedHands: 1, resultAgeMs: 320, lateResults: 1 }),
     );
     expect(video.requestVideoFrameCallback).toHaveBeenCalledTimes(2);
+    tracker.stop();
+  });
+
+  it('stays on the page while the page is fast enough', async () => {
+    const { HandTracker } = await import('../src/tracking/HandTracker.ts');
+    const tracker = new HandTracker(30);
+    model.detect.mockImplementation(() => { clock += 4; return { landmarks: [], handedness: [] }; });
+    await tracker.start();
+    for (let i = 1; i <= 60; i++) deliverFrame(clock, { expectedDisplayTime: clock, mediaTime: i });
+    expect(model.detect).toHaveBeenCalledTimes(60);
+    expect(workerConstructor).not.toHaveBeenCalled();
+    expect(tracker.usesGpu).toBe(true);
+    tracker.stop();
+  });
+
+  it('moves a slow page model to a CPU worker, one frame at a time and always the newest, and says so', async () => {
+    const posted: Array<{ type: string; delegates?: string[]; timestamp?: number }> = [];
+    let worker: { onmessage: ((event: { data: unknown }) => void) | null } | null = null;
+    workerConstructor = vi.fn(function (this: Record<string, unknown>) {
+      this.postMessage = (message: { type: string }) => { posted.push(message); };
+      this.terminate = vi.fn();
+      this.onmessage = null;
+      this.onerror = null;
+      worker = this as unknown as typeof worker;
+    });
+    vi.stubGlobal('Worker', workerConstructor);
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ close: vi.fn() }));
+    const { HandTracker } = await import('../src/tracking/HandTracker.ts');
+    const tracker = new HandTracker(30);
+    const moved = vi.fn();
+    tracker.onInferenceMoved = moved;
+    // 25 ms on the page: every camera frame would cost the game a missed refresh.
+    model.detect.mockImplementation(() => { clock += 25; return { landmarks: [], handedness: [] }; });
+    await tracker.start();
+    for (let i = 1; i <= 30; i++) deliverFrame(clock, { expectedDisplayTime: clock, mediaTime: i });
+    expect(workerConstructor).toHaveBeenCalledOnce();
+    expect(posted[0]).toEqual(expect.objectContaining({ type: 'init', delegates: ['CPU', 'GPU'] }));
+    // The page keeps tracking until the worker is ready.
+    deliverFrame(clock, { expectedDisplayTime: clock, mediaTime: 31 });
+    expect(model.detect).toHaveBeenCalledTimes(31);
+    worker!.onmessage!({ data: { type: 'ready', delegate: 'CPU', wasmRoot: '' } });
+    await Promise.resolve(); await Promise.resolve();
+    expect(model.close).toHaveBeenCalled();
+    expect(moved).toHaveBeenCalledWith(false);
+    expect(tracker.usesGpu).toBe(false);
+    // Camera frames now go to the worker, one at a time: the frames that arrive while it works are
+    // not queued behind it.
+    for (let i = 32; i <= 36; i++) deliverFrame(clock, { expectedDisplayTime: clock + i, mediaTime: i });
+    await new Promise((r) => setTimeout(r, 0));
+    const frames = () => posted.filter((m) => m.type === 'frame');
+    expect(frames()).toHaveLength(1);
+    expect(model.detect).toHaveBeenCalledTimes(31);
+    // The moment it answers, it is handed the newest of them.
+    const first = frames()[0].timestamp!;
+    tracker.onFrame = vi.fn();
+    worker!.onmessage!({ data: { type: 'result', timestamp: first, aspect: 4 / 3, inferenceMs: 40, landmarks: [], handedness: [] } });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(frames()).toHaveLength(2);
+    expect(frames()[1].timestamp).toBeCloseTo(clock + 36);
+    expect(tracker.onFrame).toHaveBeenCalledOnce();
     tracker.stop();
   });
 

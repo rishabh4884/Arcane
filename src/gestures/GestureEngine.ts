@@ -46,6 +46,14 @@ export interface ProcessContext {
   suppressPointing?: boolean;
   /** Every held sign on this hand stands down (the hand is busy with a two-hand spell). */
   suppressHolds?: boolean;
+  /**
+   * How long a hand may go unseen before it counts as gone (default `tuning.lostGraceMs`). The caller
+   * lengthens it when the tracker delivers results more slowly, so one missed result does not reset
+   * a sign half held.
+   */
+  graceMs?: number;
+  /** The tracker's recent time between results, in ms (for timings that must span one result). */
+  frameMs?: number;
 }
 
 export interface EngineOutput {
@@ -163,6 +171,8 @@ export class GestureEngine {
   private motionLatch: { pose: PoseName; until: number } | null = null;
   /** After a motion latch expires, a hold of that shape counts its charge only from that moment. */
   private holdFloor: { pose: PoseName; at: number } | null = null;
+  /** How old a cursor candidate may be and still be confirmed (see process). */
+  private candidateAgeMs = CURSOR_CANDIDATE_MAX_AGE_MS;
   private strikeVetoUntil = -Infinity;
 
   constructor(gestures: readonly GestureDef[], tuning: Tuning) {
@@ -191,8 +201,11 @@ export class GestureEngine {
 
   /** Feed one camera result (or `null` when no hand was seen). `now` is performance.now(). */
   process(frame: HandFrame | null, now: number, ctx?: ProcessContext): EngineOutput {
+    const grace = ctx?.graceMs ?? this.tuning.lostGraceMs;
+    // A cursor jump waits for the next result to confirm it: that result must be allowed to come.
+    this.candidateAgeMs = Math.max(CURSOR_CANDIDATE_MAX_AGE_MS, (ctx?.frameMs ?? 0) * 1.6);
     if (!frame) {
-      if (now - this.lastSeenAt > this.tuning.lostGraceMs) {
+      if (now - this.lastSeenAt > grace) {
         this.reset();
         this.last = IDLE;
         return IDLE;
@@ -202,7 +215,7 @@ export class GestureEngine {
     }
     // A stalled camera/inference loop delivers no null frames. Expire state on recovery
     // as well, or an old half-held sign can instantly cast using unobserved elapsed time.
-    if (now - this.lastSeenAt > this.tuning.lostGraceMs) this.reset();
+    if (now - this.lastSeenAt > grace) this.reset();
     this.lastSeenAt = now;
 
     const lm = this.smoother.smooth(frame.landmarks, now);
@@ -498,10 +511,10 @@ export class GestureEngine {
     }
 
     const anchor = this.cursorAnchor;
-    const elapsed = Math.min(Math.max(0, now - anchor.t), CURSOR_CANDIDATE_MAX_AGE_MS);
+    const elapsed = Math.min(Math.max(0, now - anchor.t), this.candidateAgeMs);
     const maxStep = CURSOR_STEP_BASE + elapsed * CURSOR_STEP_PER_MS;
     const candidate = this.cursorCandidate;
-    if (candidate && now - candidate.t <= CURSOR_CANDIDATE_MAX_AGE_MS) {
+    if (candidate && now - candidate.t <= this.candidateAgeMs) {
       const candidateElapsed = Math.max(0, now - candidate.t);
       const confirmStep = CURSOR_CONFIRM_BASE + candidateElapsed * CURSOR_CONFIRM_PER_MS;
       if (distance2d(rawPosition, candidate) <= confirmStep) {
@@ -511,7 +524,7 @@ export class GestureEngine {
       }
     }
 
-    const anchorConfirmStep = CURSOR_CONFIRM_BASE + Math.min(elapsed, CURSOR_CANDIDATE_MAX_AGE_MS) * CURSOR_CONFIRM_PER_MS;
+    const anchorConfirmStep = CURSOR_CONFIRM_BASE + Math.min(elapsed, this.candidateAgeMs) * CURSOR_CONFIRM_PER_MS;
     const rawStep = distance2d(rawPosition, anchor);
     const filteredStep = distance2d(position, anchor);
     if (rawStep <= maxStep && filteredStep <= maxStep) {
