@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { GESTURES } from '../src/config/gestures.ts';
 import { LEGEND_SPELLS, SPELLS } from '../src/config/spells.ts';
-import { CHAPTERS, LEVELS } from '../src/game/campaign.ts';
+import { CHAPTERS, LEVELS, trialLevel } from '../src/game/campaign.ts';
 import { SpellBook } from '../src/spells/SpellBook.ts';
 import { DESIGNS } from '../src/world/characters/index.ts';
 import { CREATURE_SPECS, CreatureState, PlayerState, type CreatureKind } from '../src/world/EncounterState.ts';
@@ -95,6 +95,31 @@ describe('the player', () => {
     p.update(8); p.invulnerability = 0; p.damage(60); expect(p.health).toBe(40);
     p.cast('bloom'); expect(p.health).toBe(100);
     p.darkness = 9; p.cast('flare'); expect(p.darkness).toBe(0);
+  });
+});
+
+describe('character trials', () => {
+  it('force starts the chosen attack and strikes once its windup has elapsed', () => {
+    const gorrik = new CreatureState('gorrik', undefined, 3);
+    expect(gorrik.force('stomp')).toBe(true);
+    expect(gorrik.pose).toBe('windup'); expect(gorrik.attack.id).toBe('stomp');
+    expect(gorrik.update(gorrik.attack.windup - 0.1, 5, true, true)).toBe(false);
+    expect(gorrik.update(0.2, 5, true, true)).toBe(true); expect(gorrik.pose).toBe('strike');
+  });
+  it('force is refused while dead, frozen, mid-strike, or for an unknown attack', () => {
+    const goblin = new CreatureState('goblin');
+    expect(goblin.force('nope')).toBe(false);
+    goblin.hit('frost'); expect(goblin.force('club')).toBe(false);
+    const dead = new CreatureState('goblin'); dead.hit('lightning', 9999); expect(dead.alive).toBe(false); expect(dead.force('club')).toBe(false);
+    const gorrik = new CreatureState('gorrik', undefined, 3);
+    gorrik.force('club'); gorrik.update(gorrik.attack.windup + 0.1, 1, true, true);
+    expect(gorrik.pose).toBe('strike'); expect(gorrik.force('stomp')).toBe(false);
+  });
+  it('trialLevel is one creature alone and keeps nothing to save', () => {
+    const t = trialLevel('gorrik');
+    expect(t.waves).toEqual([]); expect(t.boss).toBe('gorrik'); expect(t.trial).toBe(true);
+    expect(t.reward).toBeUndefined(); expect(t.before).toBeUndefined(); expect(t.after).toBeUndefined(); expect(t.tip).toBeUndefined();
+    expect(trialLevel('goblin').chapter).toBeGreaterThanOrEqual(1); expect(trialLevel('goblin').chapter).toBeLessThanOrEqual(4);
   });
 });
 

@@ -579,6 +579,9 @@ export class World {
   /** Resolve the encounter currently on the field through its usual defeat flow. */
   skipCurrentWave(): boolean { return this.encounter.skipCurrentWave(); }
 
+  /** Character trials: have the lone creature start one of its attacks. */
+  forceAttack(id: string): boolean { return this.encounter.forceAttack(id); }
+
   /** Finish the level through the usual victory flow. */
   skipLevel(): boolean { return this.encounter.skipLevel(); }
 

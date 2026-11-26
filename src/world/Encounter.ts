@@ -7,7 +7,7 @@ import type { GameEvents } from './events.ts';
 import { GnomeSummons } from './GnomeSummons.ts';
 import type { ParticleSystem } from './particles.ts';
 import { Character } from './rig/Character.ts';
-import { aimAssistRadius, EYE_HEIGHT, moveOnGround, terrainHeight, type Obstacle } from './spatial.ts';
+import { aimAssistRadius, EYE_HEIGHT, moveOnGround, SPAWN, terrainHeight, type Obstacle } from './spatial.ts';
 import { glowSprite, Trail } from './vfx.ts';
 import { EnemyIndicators } from '../ui/EnemyIndicators.ts';
 import { createCreatureProjectile, animateCreatureProjectile, type ProjectileStyle } from './fx/creatureProjectiles.ts';
@@ -165,6 +165,14 @@ export class Encounter {
   get currentLevel(): LevelDef | null { return this.level; }
   get active(): boolean { return this.mode !== 'idle' && this.mode !== 'won' && this.mode !== 'lost'; }
 
+  /** Character trials: have the lone creature start a named attack now. */
+  forceAttack(id: string): boolean {
+    const a = this.boss;
+    if (!a || !a.state.alive || a.figure.fade > 0.25) return false;
+    a.rush = null; a.blink = null;
+    return a.state.force(id);
+  }
+
   /**
    * Development cheat support. Resolves the fight currently on the field through the ordinary
    * death path, so the normal wave clear, boss, reward, and cutscene flow remains in charge.
@@ -316,7 +324,8 @@ export class Encounter {
   private spawnPoint(from: WaveGroup['from'], slot: number, radius: number, boss: boolean): THREE.Vector3 {
     const r = mulberry(this.generation * 977 + slot * 131 + this.waveIndex * 17);
     let x: number, z: number;
-    if (boss) { x = (r() - 0.5) * 4; z = -24 - r() * 4; }
+    if (boss && this.level?.trial) { x = SPAWN.x; z = SPAWN.z - (2.5 + CREATURE_SPECS[this.level.boss!].height * 1.2); }
+    else if (boss) { x = (r() - 0.5) * 4; z = -24 - r() * 4; }
     else if (from === 'left' || from === 'right') { x = (from === 'left' ? -1 : 1) * (22 + r() * 5); z = -10 + r() * 16; }
     else { x = (r() - 0.5) * 30; z = -18 - r() * 18; }
     const p = new THREE.Vector3(x, 0, z);
@@ -352,6 +361,7 @@ export class Encounter {
       velocity: new THREE.Vector3(), phase: Math.random() * 10, strafe: Math.random() < 0.5 ? -1 : 1, strafeTimer: 1 + Math.random() * 2,
       lastPose: 'idle', warning, rush: null, altitude: spec.hover ?? 0, burnTick: 0, bossPhase: 0, haste: 1, blink: null, removeAt: -1, elder,
     };
+    if (boss && level?.trial) actor.state.passive = true;
     this.actors.push(actor);
     if (boss) {
       this.boss = actor;
@@ -369,7 +379,7 @@ export class Encounter {
     if (result === 'ignored') return;
     if (result === 'hurt') this.stats.damageTaken += amount;
     this.fx.events?.emit(result === 'blocked' ? { type: 'player-blocked' } : { type: 'player-hurt', amount, source });
-    if (!this.player.alive) this.lose();
+    if (!this.player.alive) { if (this.level?.trial) this.player.health = 1; else this.lose(); }
   }
 
   /** The wood holds its breath: every spirit that is only watching or prowling stops and stares. */
@@ -690,7 +700,7 @@ export class Encounter {
     let faceYaw: number | null = Math.atan2(dx, dz);
     if (a.blink) this.updateBlink(a, dt);
     else if (a.rush && a.state.pose === 'strike') this.updateRush(a, dt, distance);
-    else if (fighting && a.state.alive && a.state.mobile && a.state.pose === 'walk' && !emerging) {
+    else if (fighting && a.state.alive && a.state.mobile && a.state.pose === 'walk' && !emerging && !this.level?.trial) {
       this.steer(a, distance, dx, dz, dt);
       const speed = Math.hypot(a.velocity.x, a.velocity.z);
       // At a distance, a creature faces where it is going, so its flanking and side-stepping read

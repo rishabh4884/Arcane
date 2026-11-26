@@ -173,6 +173,8 @@ export class CreatureState {
   stun = 0;
   /** Rooted: may attack but cannot move. */
   rooted = 0;
+  /** Trial dummies never choose an attack on their own; they only act when forced. */
+  passive = false;
   /** Slowed (great beasts in frost): movement and wind-ups run at half speed. */
   slow = 0;
   burn = 0;
@@ -253,6 +255,14 @@ export class CreatureState {
     return true;
   }
 
+  /** Start a named attack now (character trials). Refused while dead, frozen, stunned, or already attacking. */
+  force(id: string): boolean {
+    const attack = this.spec.attacks.find((a) => a.id === id);
+    if (!attack || !this.alive || this.freeze > 0 || this.stun > 0 || this.pose === 'windup' || this.pose === 'strike') return false;
+    this.attack = attack; this.enter('windup');
+    return true;
+  }
+
   /** Dazzled or held: no movement, no attacks. Ice-free. */
   stunFor(seconds: number): void {
     if (!this.alive) return;
@@ -292,7 +302,7 @@ export class CreatureState {
     }
     if (this.pose !== 'walk') { this.enter('walk'); this.walked = 0; }
     this.walked += dt;
-    if (this.boss && this.walked < 1.6) return false;
+    if (this.passive || (this.boss && this.walked < 1.6)) return false;
     const choice = this.choose(distance, lineOfSight);
     if (choice) { this.attack = choice; this.enter('windup'); return false; }
     return false;

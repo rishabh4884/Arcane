@@ -365,6 +365,8 @@ export class GameHud {
   private readonly bossGhost = el('span', { class: 'hud-boss-ghost' });
   private readonly banner = el('div', { class: 'hud-banner', 'aria-live': 'polite' });
   private readonly tip = el('p', { class: 'hud-tip' });
+  /** Character trial only: one button per attack of the creature on the field. */
+  private readonly trial = el('div', { class: 'hud-trial', hidden: true });
   private ghost = 100;
   private bossGhostValue = 1;
   private bannerTimer = 0;
@@ -379,11 +381,11 @@ export class GameHud {
     pause.addEventListener('click', onPause);
     this.health.append(this.healthGhost, this.healthFill);
     this.boss.append(this.bossName, el('span', { class: 'hud-boss-track' }, this.bossGhost, this.bossFill, el('i', { style: { left: '33%' } }), el('i', { style: { left: '67%' } })));
-    this.root.append(el('div', { class: 'hud-top' }, this.health, this.waves, pause), this.boss, this.banner, this.tip);
+    this.root.append(el('div', { class: 'hud-top' }, this.health, this.waves, pause), this.boss, this.banner, this.tip, this.trial);
     parent.append(this.root);
   }
 
-  start(level: LevelDef): void {
+  start(level: LevelDef, onAttack?: (id: string) => void): void {
     const chapter = CHAPTERS[level.chapter - 1];
     this.boss.hidden = true;
     this.ghost = 100;
@@ -395,6 +397,8 @@ export class GameHud {
     this.bossGhostValue = 1;
     this.tip.textContent = level.tip ?? '';
     this.tip.hidden = !level.tip;
+    this.trial.hidden = !level.trial;
+    this.trial.replaceChildren(...(level.trial && level.boss ? CREATURE_SPECS[level.boss].attacks.map((a) => button(a.id[0].toUpperCase() + a.id.slice(1), () => onAttack?.(a.id))) : []));
     this.root.hidden = false;
     this.show(level.name, level.kind === 'final' ? 'The ruler of this reach awaits' : `${chapter.numeral} · Level ${level.index}`, 2.6);
   }

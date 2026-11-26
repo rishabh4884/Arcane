@@ -8,7 +8,8 @@ import type { SettingsPanel } from '../ui/SettingsPanel.ts';
 import { GrimoireScreen } from '../ui/grimoire.ts';
 import { GameHud, JourneyScreen, LoadingScreen, MenuScreen, PauseScreen, ResultScreen, type Ui } from '../ui/screens.ts';
 import type { World } from '../world/World.ts';
-import { chapterOf, levelById, LEVELS, type LevelDef } from './campaign.ts';
+import { chapterOf, levelById, LEVELS, trialLevel, type LevelDef } from './campaign.ts';
+import { CREATURE_SPECS, type CreatureKind } from '../world/EncounterState.ts';
 import { Progress } from './Progress.ts';
 
 type State = 'loading' | 'menu' | 'journey' | 'grimoire' | 'cutscene' | 'level' | 'paused' | 'result';
@@ -197,14 +198,22 @@ export class Game {
     this.startLevel(level);
   }
 
+  /** Admin character trial: one creature alone, nothing saved. */
+  trial(kind: CreatureKind): void {
+    this.deps.settings.toggle(false);
+    this.hideScreens();
+    this.hud.hide();
+    this.startLevel(trialLevel(kind));
+  }
+
   private startLevel(level: LevelDef): void {
     this.level = level;
     this.resolved = false;
     this.hideScreens();
-    this.progress.setLast(level.id);
+    if (!level.trial) this.progress.setLast(level.id);
     this.deps.world.startLevel(level, chapterOf(level).mood);
     this.setBody('level');
-    this.hud.start(level);
+    this.hud.start(level, (id) => this.deps.world.forceAttack(id));
   }
 
   private leaveLevel(): void {
@@ -255,6 +264,12 @@ export class Game {
     if (this.resolved || !this.level) return;
     this.resolved = true;
     const level = this.level;
+    if (level.trial) {
+      this.hud.show('Trial complete', CREATURE_SPECS[level.boss!].name, 2.6);
+      await wait(2600);
+      this.toMenu();
+      return;
+    }
     const stats = this.deps.world.snapshot().stats;
     this.hud.show(level.kind === 'normal' ? 'The wood quiets' : level.kind === 'final' ? 'The ruler falls' : 'The great one is released', '', 2.6);
     const outcome = this.progress.complete(level, stats.time, stats.damageTaken);

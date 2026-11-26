@@ -68,6 +68,7 @@ const settings = new SettingsPanel(document.body, {
   isDebugVisible: () => debug.isVisible,
   graphics: { mode: () => world.graphicsMode, set: (mode) => world.setGraphics(mode) },
   onDebug: (v) => debug.setVisible(v),
+  onTrial: (kind) => game.trial(kind),
   onTuning: (t) => {
     const previousCameraFps = tuning.cameraFps;
     tuning = structuredClone(t);

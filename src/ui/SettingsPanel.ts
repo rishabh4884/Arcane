@@ -1,6 +1,7 @@
 import { GESTURE_GROUPS, isDualGesture, type GestureDef, type GestureGroup } from '../config/gestures.ts';
 import type { SpellDef } from '../config/spells.ts';
 import type { Tuning } from '../config/tuning.ts';
+import { CREATURE_SPECS, type CreatureKind, type Rank } from '../world/EncounterState.ts';
 import type { GraphicsMode } from '../world/Quality.ts';
 import type { SpellBook } from '../spells/SpellBook.ts';
 import { el } from './dom.ts';
@@ -17,7 +18,11 @@ export interface SettingsOptions {
   graphics?: { mode(): GraphicsMode; set(mode: GraphicsMode): void };
   /** Optional master volume and mute. */
   sound?: { readonly volume: number; readonly muted: boolean; setVolume(v: number): void; setMuted(m: boolean): void };
+  /** Optional admin character trial: fight one creature alone. */
+  onTrial?: (kind: CreatureKind) => void;
 }
+
+const RANKS: Record<Rank, string> = { normal: 'Normal', sub: 'Sub-boss', final: 'Final boss' };
 
 const ADMIN_CODE = 'admin69';
 const smoothnessToCutoff = (s: number): number => 4 - (s / 100) * 3.5;
@@ -118,11 +123,27 @@ export class SettingsPanel {
       );
     });
     this.panel.replaceChildren(
-      this.header('Admin · Spell assignment'),
+      this.header('Admin'),
+      el('h3', {}, 'Spell assignment'),
       el('p', { class: 'note' }, 'Choose a gesture for each spell; selecting one already used swaps them.'),
       ...rows,
       el('button', { class: 'reset', type: 'button', onclick: () => book.resetToDefaults() }, 'Restore gesture defaults'),
+      ...this.trialControls(),
     );
+  }
+
+  private trialControls(): HTMLElement[] {
+    const { onTrial } = this.o;
+    if (!onTrial) return [];
+    const kinds = Object.keys(CREATURE_SPECS) as CreatureKind[];
+    const select = el('select', { 'aria-label': 'Character' },
+      ...(Object.keys(RANKS) as Rank[]).map((rank) =>
+        el('optgroup', { label: RANKS[rank] }, ...kinds.filter((k) => CREATURE_SPECS[k].rank === rank).map((k) => el('option', { value: k }, CREATURE_SPECS[k].name)))));
+    return [
+      el('h3', {}, 'Character trial'),
+      el('label', { class: 'row' }, el('span', { class: 'label' }, 'Character'), select),
+      el('button', { class: 'reset', type: 'button', onclick: () => onTrial(select.value as CreatureKind) }, 'Begin trial'),
+    ];
   }
 
   private header(title: string): HTMLElement {
@@ -205,7 +226,7 @@ export class SettingsPanel {
           this.render();
         },
       }, 'Restore defaults'),
-      ...(this.adminUnlocked ? [el('button', { class: 'reset', type: 'button', onclick: () => this.openAdmin() }, 'Admin · Spell assignment')] : []),
+      ...(this.adminUnlocked ? [el('button', { class: 'reset', type: 'button', onclick: () => this.openAdmin() }, 'Admin')] : []),
     );
   }
 }

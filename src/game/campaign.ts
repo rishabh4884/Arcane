@@ -1,4 +1,4 @@
-import { CREATURE_SPECS, type CreatureKind, type Scaling } from '../world/EncounterState.ts';
+import { CREATURE_SPECS, NO_SCALING, type CreatureKind, type Scaling } from '../world/EncounterState.ts';
 
 /**
  * THE JOURNEY
@@ -54,6 +54,8 @@ export interface LevelDef {
   reward?: string;
   /** A hint shown before the first wave (early levels teach). */
   tip?: string;
+  /** An admin character trial: one creature alone, nothing saved. */
+  trial?: boolean;
 }
 
 const NAMES: readonly string[] = [
@@ -207,6 +209,12 @@ export const LEVELS: readonly LevelDef[] = NAMES.map((name, i) => {
     tip: TIPS[id],
   };
 });
+
+/** A throwaway level for fighting one creature alone, on the region of the level it belongs to. */
+export function trialLevel(kind: CreatureKind): LevelDef {
+  const home = LEVELS.find((l) => l.boss === kind) ?? LEVELS.find((l) => l.waves.some((w) => w.some((g) => g.kind === kind))) ?? LEVELS[0];
+  return { ...home, name: `Trial · ${CREATURE_SPECS[kind].name}`, waves: [], boss: kind, scaling: NO_SCALING, before: undefined, after: undefined, reward: undefined, tip: undefined, trial: true };
+}
 
 export const levelById = (id: number): LevelDef | undefined => LEVELS.find((l) => l.id === id);
 export const chapterOf = (level: LevelDef): ChapterDef => CHAPTERS[level.chapter - 1];
