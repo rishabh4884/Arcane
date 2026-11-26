@@ -46,7 +46,7 @@ export class Game {
   private cameraState = 'Camera not started';
   private last = performance.now();
   private resolved = false;
-  private waveSkipCode = '';
+  private cheatCode = '';
 
   constructor(private readonly deps: GameDeps) {
     const ui: Ui = (kind) => deps.audio.ui(kind);
@@ -77,7 +77,7 @@ export class Game {
     deps.world.setMood(this.progress.freed ? 'dawn' : 'edge', 0.01);
     deps.world.events.on((e) => this.onEvent(e));
     window.addEventListener('keydown', (e) => {
-      if (this.tryWaveSkip(e)) return;
+      if (this.tryCheat(e)) return;
       if (e.key !== 'Escape' || e.repeat) return;
       if (document.querySelector<HTMLElement>('#spellbook')?.hidden === false) return;
       if (this.state === 'level') this.pauseGame();
@@ -94,20 +94,18 @@ export class Game {
     requestAnimationFrame(tick);
   }
 
-  /**
-   * HUSHWAVE is intentionally keyboard-only: it is available for development and review without
-   * adding a player-facing control to the combat HUD.
-   */
-  private tryWaveSkip(event: KeyboardEvent): boolean {
+  /** Keyboard-only development shortcuts, without player-facing combat controls. */
+  private tryCheat(event: KeyboardEvent): boolean {
     if (this.state !== 'level' || event.repeat || event.metaKey || event.ctrlKey || event.altKey) return false;
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return false;
     if (event.key.length !== 1) return false;
-    this.waveSkipCode = (this.waveSkipCode + event.key.toLowerCase()).slice(-8);
-    if (this.waveSkipCode !== 'hushwave') return false;
-    this.waveSkipCode = '';
-    if (!this.deps.world.skipCurrentWave()) return false;
+    this.cheatCode = (this.cheatCode + event.key.toLowerCase()).slice(-4);
+    const wave = this.cheatCode.endsWith('hush'), level = this.cheatCode.endsWith('wood');
+    if (!wave && !level) return false;
+    this.cheatCode = '';
+    if (!(wave ? this.deps.world.skipCurrentWave() : this.deps.world.skipLevel())) return false;
     event.preventDefault();
-    this.hud.show('The hush answers', 'The foe falls', 1.6);
+    if (wave) this.hud.show('The hush answers', 'The foe falls', 1.6);
     return true;
   }
 

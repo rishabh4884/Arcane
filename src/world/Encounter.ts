@@ -185,6 +185,19 @@ export class Encounter {
     return true;
   }
 
+  /** Finish the current level through the ordinary victory and progression flow. */
+  skipLevel(): boolean {
+    if (!this.active) return false;
+    this.pendingSpawns.length = 0;
+    for (const actor of this.actors) {
+      if (!actor.state.alive) continue;
+      actor.state.hit('dawn', Number.MAX_SAFE_INTEGER);
+      this.release(actor);
+    }
+    this.win();
+    return true;
+  }
+
   startLevel(level: LevelDef): void {
     if (this.disposed) return;
     this.stop();

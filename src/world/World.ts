@@ -579,6 +579,9 @@ export class World {
   /** Resolve the encounter currently on the field through its usual defeat flow. */
   skipCurrentWave(): boolean { return this.encounter.skipCurrentWave(); }
 
+  /** Finish the level through the usual victory flow. */
+  skipLevel(): boolean { return this.encounter.skipLevel(); }
+
   /** Stage a named region (menus, cutscenes). */
   setRegion(name: string): void { this.regions.apply(namedRegion(name)); }
 
