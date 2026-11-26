@@ -4,7 +4,7 @@ import { loadJSON, saveJSON, type KeyValueStore } from '../storage.ts';
 
 const STORAGE_KEY = 'arcane.spellbook.v1';
 const CASTS_KEY = 'arcane.practice.v1';
-const CAST_CAP = 3;
+export const CAST_CAP = 3;
 
 /**
  * Which gesture casts which spell. A gesture casts at most one spell, and a spell has exactly one

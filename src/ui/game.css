@@ -108,21 +108,6 @@
 .card-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 1.2rem; }
 .card-actions .g-button--primary { width: auto; padding-inline: 1.8rem; text-align: center; }
 
-/* ── grimoire ─────────────────────────────────────────────── */
-.grimoire-primer { max-width: 70ch; margin: 0 clamp(1rem, 4vw, 3rem) 1rem; color: var(--mist); font-size: 0.92rem; }
-.grimoire-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 0.9rem; padding: 0 clamp(1rem, 4vw, 3rem) 3rem; }
-.spell-card { display: flex; gap: 1rem; padding: 1.1rem; border: 1px solid var(--panel-line); border-radius: 18px; background: linear-gradient(140deg, color-mix(in srgb, var(--spell) 9%, transparent), rgba(255, 255, 255, 0.015)); }
-.spell-card.is-legend { border-color: color-mix(in srgb, var(--spell) 40%, transparent); }
-.spell-card.is-sealed { filter: grayscale(0.85); opacity: 0.6; }
-.spell-card-icon { flex: none; display: grid; place-items: center; width: 3.4rem; height: 3.4rem; border-radius: 14px; background: rgba(0, 0, 0, 0.35); color: var(--spell); }
-.spell-card-icon svg { width: 2.2rem; height: 2.2rem; filter: drop-shadow(0 0 8px var(--spell)); }
-.spell-card h3 { margin: 0.1rem 0 0.25rem; font: italic 600 1.3rem var(--serif); }
-.spell-card-tier { margin: 0; color: var(--spell); font: 600 0.66rem var(--sans); letter-spacing: 0.2em; text-transform: uppercase; }
-.spell-card-gesture { margin: 0; color: var(--vellum); font-weight: 600; font-size: 0.88rem; }
-.spell-card-hint, .spell-card-effect { margin: 0.35rem 0 0; color: #c4cbb9; font-size: 0.84rem; }
-.spell-card-lore { margin: 0.45rem 0 0; color: #8f978a; font: italic 0.86rem var(--serif); }
-.spell-card-cd { margin: 0.4rem 0 0; color: #7b8277; font-size: 0.74rem; letter-spacing: 0.05em; }
-
 /* ── pause & results ─────────────────────────────────────────────── */
 .g-screen--pause, .g-screen--result { display: grid; place-items: center; padding: 1rem; background: rgba(5, 7, 6, 0.62); backdrop-filter: blur(5px); }
 .pause-panel, .result-panel { display: grid; gap: 0.6rem; width: min(440px, 100%); padding: 2rem; border: 1px solid var(--panel-line); border-radius: 26px; background: rgba(12, 14, 13, 0.9); box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55); text-align: center; }

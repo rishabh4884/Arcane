@@ -2,7 +2,6 @@ import { GESTURES } from '../config/gestures.ts';
 import { SPELLS, type SpellDef } from '../config/spells.ts';
 import { CHAPTERS, LEVELS, type LevelDef } from '../game/campaign.ts';
 import type { Progress } from '../game/Progress.ts';
-import type { SpellBook } from '../spells/SpellBook.ts';
 import { CREATURE_SPECS, type CreatureKind } from '../world/EncounterState.ts';
 import type { EncounterSnapshot } from '../world/Encounter.ts';
 import { el } from './dom.ts';
@@ -12,14 +11,15 @@ import './game.css';
 /**
  * THE GAME'S SCREENS
  * ──────────────────
- * Loading, the main menu, the Journey (every level on four winding paths), level cards, the
- * Grimoire, pause, victory and defeat, and the in-level HUD. Plain DOM over the living 3D wood.
+ * Loading, the main menu, the Journey (every level on four winding paths), level cards, pause,
+ * victory and defeat, and the in-level HUD. Plain DOM over the living 3D wood. The Grimoire is in
+ * grimoire.ts.
  */
 
-type Ui = (kind: 'hover' | 'select' | 'back' | 'unlock' | 'story') => void;
-const noop: Ui = () => undefined;
+export type Ui = (kind: 'hover' | 'select' | 'back' | 'unlock' | 'story' | 'ready') => void;
+export const noop: Ui = () => undefined;
 
-function button(label: string, onClick: () => void, cls = 'g-button', ui: Ui = noop, sound: 'select' | 'back' | null = 'select'): HTMLButtonElement {
+export function button(label: string, onClick: () => void, cls = 'g-button', ui: Ui = noop, sound: 'select' | 'back' | null = 'select'): HTMLButtonElement {
   const b = el('button', { class: cls, type: 'button' }, label);
   b.addEventListener('click', () => { if (sound) ui(sound); onClick(); });
   b.addEventListener('pointerenter', () => ui('hover'));
@@ -27,13 +27,13 @@ function button(label: string, onClick: () => void, cls = 'g-button', ui: Ui = n
   return b;
 }
 
-function screen(id: string, label: string): HTMLElement {
+export function screen(id: string, label: string): HTMLElement {
   const s = el('section', { class: `g-screen g-screen--${id}`, id: `screen-${id}`, 'aria-label': label, hidden: true });
   document.body.append(s);
   return s;
 }
 
-function conceal(node: HTMLElement): void {
+export function conceal(node: HTMLElement): void {
   if (node.contains(document.activeElement) && document.activeElement instanceof HTMLElement) document.activeElement.blur();
   node.hidden = true;
 }
@@ -176,7 +176,8 @@ const KIND_LABEL: Record<LevelDef['kind'], string> = { normal: 'Three waves', su
 export class JourneyScreen {
   readonly root = screen('journey', 'The Journey');
   private readonly track = el('div', { class: 'journey-track' });
-  private readonly card = el('aside', { class: 'level-card', hidden: true, role: 'dialog', 'aria-modal': 'true' });
+  private readonly card = el('aside', { class: 'level-card', hidden: true, role: 'dialog', 'aria-labelledby': 'level-card-title' });
+  private opener: HTMLElement | null = null;
 
   constructor(private readonly onBegin: (level: LevelDef) => void, private readonly onBack: () => void, private readonly ui: Ui = noop) {
     this.root.append(
@@ -187,7 +188,7 @@ export class JourneyScreen {
       this.track,
       this.card,
     );
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) { e.stopImmediatePropagation(); if (!this.card.hidden) { this.ui('back'); conceal(this.card); } else onBack(); } });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) { e.stopImmediatePropagation(); if (!this.card.hidden) { this.ui('back'); this.closeCard(); } else onBack(); } });
   }
 
   show(progress: Progress): void {
@@ -232,14 +233,19 @@ export class JourneyScreen {
           el('span', { class: 'chapter-count' }, `${done} / 10`)),
         path));
     }
-    this.card.hidden = true;
+    this.card.hidden = true; this.opener = null;
     this.root.hidden = false;
     const next = this.track.querySelector<HTMLElement>('.is-next');
     next?.scrollIntoView({ block: 'center' });
     next?.focus({ preventScroll: true });
   }
 
+  private closeCard(): void {
+    conceal(this.card); this.opener?.focus({ preventScroll: true }); this.opener = null;
+  }
+
   private openCard(level: LevelDef, progress: Progress): void {
+    if (this.card.hidden) this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const chapter = CHAPTERS[level.chapter - 1];
     const kinds = new Set<CreatureKind>();
     for (const wave of level.waves) for (const g of wave) kinds.add(g.kind);
@@ -247,14 +253,14 @@ export class JourneyScreen {
     const record = progress.record(level.id);
     this.card.replaceChildren(
       el('p', { class: 'g-eyebrow' }, `${chapter.numeral} · ${chapter.name} · Level ${level.index}`),
-      el('h3', {}, level.name),
+      el('h3', { id: 'level-card-title' }, level.name),
       el('p', { class: 'card-kind' }, KIND_LABEL[level.kind]),
       level.boss ? el('p', { class: 'card-boss' }, `${CREATURE_SPECS[level.boss].name} — ${CREATURE_SPECS[level.boss].title ?? ''}`) : '',
       kinds.size ? el('ul', { class: 'card-foes' }, ...[...kinds].map((k) => el('li', {}, CREATURE_SPECS[k].name))) : '',
       reward ? el('p', { class: 'card-reward' }, 'Surrenders a legendary spell: ', el('strong', {}, reward.name)) : '',
       record ? el('p', { class: 'card-record' }, `Best: ${fmtTime(record.time)} · ${'★'.repeat(record.stars)}`) : '',
       el('div', { class: 'card-actions' },
-        button('Close', () => { conceal(this.card); }, 'g-button g-button--quiet', this.ui, 'back'),
+        button('Close', () => this.closeCard(), 'g-button g-button--quiet', this.ui, 'back'),
         button(record ? 'Play again' : 'Begin', () => this.onBegin(level), 'g-button g-button--primary', this.ui)),
     );
     this.card.hidden = false;
@@ -262,48 +268,6 @@ export class JourneyScreen {
   }
 
   hide(): void { conceal(this.root); conceal(this.card); }
-}
-
-/* ═════════════════════════════════ GRIMOIRE ═════════════════════════════════ */
-
-export class GrimoireScreen {
-  readonly root = screen('grimoire', 'Grimoire');
-  private readonly grid = el('div', { class: 'grimoire-grid' });
-
-  constructor(private readonly book: SpellBook, private readonly onBack: () => void, ui: Ui = noop) {
-    this.root.append(
-      el('header', { class: 'g-header' },
-        button('← Back', onBack, 'g-button g-button--quiet', ui, null),
-        el('div', {}, el('p', { class: 'g-eyebrow' }, 'Every spell has its own movement'), el('h2', {}, 'The Grimoire'))),
-      el('p', { class: 'grimoire-primer' }, 'Aim with your palm and hold a sign until its ring fills; sweeps, strikes and circles cast when recognised.'),
-      this.grid,
-    );
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) { e.stopImmediatePropagation(); onBack(); } });
-  }
-
-  show(): void {
-    this.grid.replaceChildren();
-    for (const spell of SPELLS) {
-      const known = this.book.isKnown(spell.id);
-      const g = this.book.gestureFor(spell.id) ?? gestureOf(spell);
-      const card = el('article', { class: `spell-card${known ? '' : ' is-sealed'}${spell.tier === 'legend' ? ' is-legend' : ''}` },
-        el('div', { class: 'spell-card-icon' }, createSpellIcon(spell.id)),
-        el('div', { class: 'spell-card-body' },
-          el('p', { class: 'spell-card-tier' }, spell.tier === 'legend' ? (known ? 'Legendary' : 'Sealed · Legendary') : 'Known'),
-          el('h3', {}, spell.name),
-          known ? el('p', { class: 'spell-card-gesture' }, g ? `${g.glyph}  ${g.name}` : '') : '',
-          el('p', { class: 'spell-card-hint' }, known ? g?.hint ?? '' : `Defeat the ruler of level ${spell.learnedAt} to learn it.`),
-          known ? el('p', { class: 'spell-card-effect' }, spell.effectText) : '',
-          known ? el('p', { class: 'spell-card-lore' }, `“${spell.lore}”`) : '',
-          known ? el('p', { class: 'spell-card-cd' }, `Returns in ${spell.cooldown}s`) : ''));
-      card.style.setProperty('--spell', spell.color);
-      this.grid.append(card);
-    }
-    this.root.hidden = false;
-    this.root.querySelector<HTMLButtonElement>('.g-button')?.focus({ preventScroll: true });
-  }
-
-  hide(): void { conceal(this.root); }
 }
 
 /* ═════════════════════════════════ PAUSE ═════════════════════════════════ */

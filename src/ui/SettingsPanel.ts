@@ -1,4 +1,5 @@
 import { GESTURE_GROUPS, isDualGesture, type GestureDef, type GestureGroup } from '../config/gestures.ts';
+import type { SpellDef } from '../config/spells.ts';
 import type { Tuning } from '../config/tuning.ts';
 import type { GraphicsMode } from '../world/Quality.ts';
 import type { SpellBook } from '../spells/SpellBook.ts';
@@ -20,6 +21,20 @@ export interface SettingsOptions {
 
 const smoothnessToCutoff = (s: number): number => 4 - (s / 100) * 3.5;
 const cutoffToSmoothness = (c: number): number => Math.round(((4 - c) / 3.5) * 100);
+
+/** A gesture dropdown for one spell, grouped by kind. Picking a gesture rebinds the spell (`pick`). */
+export function gestureSelect(book: SpellBook, spell: SpellDef, pick = (gestureId: string) => book.assign(spell.id, gestureId)): HTMLSelectElement {
+  const current = book.gestureFor(spell.id);
+  const option = (g: GestureDef) => {
+    const opt = el('option', { value: g.id }, `${g.glyph} ${g.name}${isDualGesture(g) ? ' · 2 hands' : ''}`);
+    if (current?.id === g.id) opt.selected = true;
+    return opt;
+  };
+  const groups = (Object.keys(GESTURE_GROUPS) as GestureGroup[]).map((key) =>
+    el('optgroup', { label: GESTURE_GROUPS[key] }, ...book.gestures.filter((g) => g.group === key).map(option)),
+  );
+  return el('select', { 'aria-label': `Gesture for ${spell.name}`, onchange: (e: Event) => pick((e.target as HTMLSelectElement).value) }, ...groups);
+}
 
 /** The Spellbook panel: rebind gestures to spells and tune how the detection feels. */
 export class SettingsPanel {
@@ -89,22 +104,7 @@ export class SettingsPanel {
     const { book } = this.o;
     const rows = book.available.map((spell) => {
       const current = book.gestureFor(spell.id);
-      const option = (g: GestureDef) => {
-        const opt = el('option', { value: g.id }, `${g.glyph} ${g.name}${isDualGesture(g) ? ' · 2 hands' : ''}`);
-        if (current?.id === g.id) opt.selected = true;
-        return opt;
-      };
-      const groups = (Object.keys(GESTURE_GROUPS) as GestureGroup[]).map((key) =>
-        el('optgroup', { label: GESTURE_GROUPS[key] }, ...book.gestures.filter((g) => g.group === key).map(option)),
-      );
-      const select = el(
-        'select',
-        {
-          'aria-label': `Gesture for ${spell.name}`,
-          onchange: (e: Event) => book.assign(spell.id, (e.target as HTMLSelectElement).value),
-        },
-        ...groups,
-      );
+      const select = gestureSelect(book, spell);
       return el(
         'div',
         { class: 'spell-row', style: { '--spell': spell.color } },

@@ -1,10 +1,12 @@
 import type { AudioEngine } from '../audio/AudioEngine.ts';
+import type { EngineOutput } from '../gestures/GestureEngine.ts';
 import { SPELLS } from '../config/spells.ts';
 import { SCRIPTS } from '../cutscene/scripts.ts';
 import { CutscenePlayer } from '../cutscene/Cutscene.ts';
 import type { SpellBook } from '../spells/SpellBook.ts';
 import type { SettingsPanel } from '../ui/SettingsPanel.ts';
-import { GameHud, GrimoireScreen, JourneyScreen, LoadingScreen, MenuScreen, PauseScreen, ResultScreen } from '../ui/screens.ts';
+import { GrimoireScreen } from '../ui/grimoire.ts';
+import { GameHud, JourneyScreen, LoadingScreen, MenuScreen, PauseScreen, ResultScreen, type Ui } from '../ui/screens.ts';
 import type { World } from '../world/World.ts';
 import { chapterOf, levelById, LEVELS, type LevelDef } from './campaign.ts';
 import { Progress } from './Progress.ts';
@@ -47,7 +49,7 @@ export class Game {
   private waveSkipCode = '';
 
   constructor(private readonly deps: GameDeps) {
-    const ui = (kind: 'hover' | 'select' | 'back' | 'unlock' | 'story') => deps.audio.ui(kind);
+    const ui: Ui = (kind) => deps.audio.ui(kind);
     deps.book.setLearned(this.progress.learned);
     this.loading = new LoadingScreen(() => this.enter(), ui);
     this.menu = new MenuScreen({
@@ -127,12 +129,17 @@ export class Game {
     try {
       await this.deps.startCamera();
       this.cameraState = 'Camera ready';
+      this.grimoire.setCamera(null);
     } catch (error) {
       console.warn('[arcane] camera failed', error);
       this.cameraState = 'Camera unavailable: allow camera access to cast';
+      this.grimoire.setCamera(this.cameraState);
     }
     if (this.state === 'menu') this.menu.show(this.progress, this.cameraState);
   }
+
+  /** Every frame from the gesture engine, for screens that watch the hands (the Grimoire's practice). */
+  observe(out: EngineOutput): void { this.grimoire.listen(out); }
 
   private setBody(state: State): void {
     this.state = state;

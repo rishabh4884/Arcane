@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { ScreenFeedback } from '../world/vfx.ts';
 import './vitality.css';
 
+const calm = window.matchMedia('(prefers-reduced-motion: reduce)');
 const css = (color: THREE.ColorRepresentation): string => `#${new THREE.Color(color).getHexString()}`;
 
 /**
@@ -36,7 +37,10 @@ export class ScreenFX {
   /** Bind to the world's ScreenFeedback interface (shake is handled by the camera). */
   feedback(shake: (amount: number) => void): ScreenFeedback {
     return {
-      flash: (color, strength, mode = 'full') => (mode === 'edge' ? this.edge(color, strength) : this.flash(color, strength)),
+      flash: (color, strength, mode = 'full') => {
+        strength *= calm.matches ? 0.4 : 1;
+        return mode === 'edge' ? this.edge(color, strength) : this.flash(color, strength);
+      },
       shake,
     };
   }

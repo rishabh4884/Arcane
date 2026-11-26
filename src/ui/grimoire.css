@@ -1,0 +1,104 @@
+/* The Grimoire: an open book. Every spell down the left, one page on the right; each column scrolls on its own. */
+.g-screen--grimoire { overflow: hidden; }
+.g-screen--grimoire .g-header { flex-wrap: wrap; }
+.grimoire-count { margin: 0 0 0 auto; color: var(--mist); font-size: 0.85rem; letter-spacing: 0.04em; }
+.grimoire-book { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(14rem, 18rem) minmax(0, 60rem); justify-content: center; gap: clamp(1rem, 2.5vw, 2rem); padding: 0.5rem clamp(1rem, 4vw, 3rem) clamp(1rem, 3vw, 2rem); }
+.grimoire-index, .grimoire-page { min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+
+/* ── index: the spell colour marks identity; the open page gets the one bordered row ── */
+.grimoire-index { padding: 0.2rem 0.4rem 1rem 0.2rem; }
+.index-group + .index-group { margin-top: 1.4rem; }
+.index-group h3, .page-section h4 { margin: 0 0 0.5rem; color: var(--lantern); font: 600 0.72rem/1.2 var(--sans); letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.85; }
+.index-group h3 { margin-left: 0.6rem; }
+.index-group ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.index-entry { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto; align-items: center; gap: 0.7rem; width: 100%; min-height: 2.75rem; padding: 0.3rem 0.7rem 0.3rem 0.45rem; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--vellum); text-align: left; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+.index-entry:hover { background: rgba(255, 255, 255, 0.045); }
+.index-entry[aria-current] { border-color: color-mix(in srgb, var(--spell) 50%, transparent); background: color-mix(in srgb, var(--spell) 12%, rgba(255, 255, 255, 0.02)); }
+.index-icon { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--spell); }
+.index-icon svg { width: 1.55rem; height: 1.55rem; }
+.index-name { overflow: hidden; font: 500 0.95rem/1.2 var(--sans); text-overflow: ellipsis; white-space: nowrap; }
+.index-mark { color: var(--mist); font-size: 0.95rem; }
+.index-entry.is-sealed { color: var(--mist); }
+.index-entry.is-sealed .index-icon { opacity: 0.45; filter: grayscale(1); }
+.index-entry.is-sealed .index-mark { font-size: 0.72rem; letter-spacing: 0.08em; }
+
+/* ── the page ── */
+.grimoire-page { container-type: inline-size; padding: clamp(1.2rem, 3vw, 2.2rem); border: 1px solid var(--panel-line); border-radius: 22px; background: radial-gradient(ellipse at 0% 0%, color-mix(in srgb, var(--spell) 14%, transparent), transparent 55%), rgba(255, 255, 255, 0.02); }
+.page-head { display: flex; align-items: center; gap: 1.3rem; }
+.page-icon { flex: none; display: grid; place-items: center; width: 5rem; height: 5rem; border-radius: 18px; background: rgba(0, 0, 0, 0.35); color: var(--spell); }
+.page-icon svg { width: 3.2rem; height: 3.2rem; filter: drop-shadow(0 0 10px var(--spell)); }
+.page-head .g-eyebrow { color: var(--spell); }
+.page-head h3 { margin: 0; font: italic 600 clamp(2rem, 4vw, 2.8rem)/1 var(--serif); }
+.page-lore { max-width: 54ch; margin: 0.55rem 0 0; color: #b9c0ae; font: italic 1.02rem/1.45 var(--serif); }
+.page-section { margin-top: 1.8rem; padding-top: 1.4rem; border-top: 1px solid var(--panel-line); }
+.page-gesture { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.2rem 0.8rem; margin: 0; font: 600 1.15rem/1.3 var(--sans); }
+.page-gesture span { color: var(--mist); font-size: 0.85rem; font-weight: 400; }
+.page-hint { max-width: 62ch; margin: 0.35rem 0 0; color: #c4cbb9; }
+
+/* How (the drawn hand) beside you (the camera's hands), the same size so they can be compared, then the practice words. */
+.page-stage { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-top: 1.2rem; }
+.page-stage figure { display: grid; align-content: start; gap: 0.45rem; margin: 0; }
+.page-stage figcaption, .page-practice-title { order: -1; margin: 0; color: var(--mist); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; }
+.page-diagram svg, .practice-frame { display: block; width: 100%; aspect-ratio: 4 / 3; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 14px; background: rgba(4, 6, 5, 0.55); }
+.practice-frame { position: relative; overflow: hidden; }
+.practice-frame.is-cast { animation: practice-cast 0.9s ease-out; }
+@keyframes practice-cast { from { border-color: var(--spell); box-shadow: inset 0 0 40px color-mix(in srgb, var(--spell) 45%, transparent); } }
+.practice-hands { display: block; width: 100%; height: 100%; }
+.practice-meter { position: absolute; right: 12px; bottom: 10px; left: 12px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.practice-meter span { display: block; height: 100%; background: var(--spell); transform: scaleX(var(--p, 0)); transform-origin: left; }
+.page-practice { grid-column: 1 / -1; display: grid; align-content: start; gap: 0.5rem; }
+.practice-status { margin: 0; color: var(--vellum); font-size: 0.92rem; line-height: 1.4; }
+.practice-tally { display: flex; align-items: center; gap: 0.55rem; margin: 0; color: var(--mist); font-size: 0.8rem; }
+.tally-marks { display: inline-flex; gap: 4px; }
+.tally-marks i { width: 8px; height: 8px; border: 1px solid var(--spell); border-radius: 50%; }
+.tally-marks i.is-done { background: var(--spell); }
+@container (min-width: 46rem) {
+  .page-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(10rem, 0.7fr); }
+  .page-practice { grid-column: auto; }
+  .practice-status { min-height: 4.2em; }
+}
+@container (max-width: 26rem) { .page-stage { grid-template-columns: 1fr; } }
+
+.page-rebind { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-top: 0.9rem; }
+.page-rebind span { color: var(--mist); font-size: 0.88rem; }
+.page-rebind select { min-width: min(100%, 16rem); min-height: 2.6rem; padding: 0.4rem 0.7rem; border: 1px solid var(--panel-line); border-radius: 10px; background: var(--ink-solid); color: var(--vellum); }
+.page-note { margin: 0.55rem 0 0; color: var(--lantern); font-size: 0.85rem; }
+.page-effect { max-width: 62ch; margin: 0; color: #d6dccb; }
+.page-facts { display: flex; flex-wrap: wrap; gap: 0.3rem 1.4rem; margin: 0.6rem 0 0; padding: 0; color: var(--mist); font-size: 0.85rem; list-style: none; }
+
+/* A sealed page: the sigil behind a dashed seal, and what breaks it. */
+.grimoire-page.is-sealed { display: flex; flex-direction: column; background: rgba(255, 255, 255, 0.02); }
+.grimoire-page.is-sealed .page-head .g-eyebrow { color: var(--mist); }
+.page-seal { flex: 1; display: grid; place-content: center; justify-items: center; gap: 0.4rem; padding: 2rem 0; color: var(--vellum); font: italic 1.25rem/1.4 var(--serif); text-align: center; }
+.page-seal p { margin: 0; }
+.page-seal .seal-sub { color: var(--mist); font: 0.88rem/1.4 var(--sans); }
+.seal-sigil { display: grid; place-items: center; width: 9rem; height: 9rem; margin-bottom: 1.2rem; border: 2px dashed color-mix(in srgb, var(--spell) 40%, var(--panel-line)); border-radius: 50%; color: var(--spell); }
+.seal-sigil svg { width: 4.4rem; height: 4.4rem; opacity: 0.4; filter: grayscale(0.7); }
+
+/* ── gesture diagrams: an outlined hand, ink inside, in the spell's colour ── */
+.gesture-diagram { color: var(--spell); }
+.gd-bone { fill: none; stroke: currentColor; stroke-width: 8.6; stroke-linecap: round; stroke-linejoin: round; }
+.gd-flesh { fill: none; stroke: #101311; stroke-width: 5.4; stroke-linecap: round; stroke-linejoin: round; }
+.gd-palm { fill: #101311; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; }
+.gd-path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; opacity: 0.5; }
+.gd-dash { stroke-dasharray: 3 5; }
+.gd-track { fill: none; stroke: currentColor; stroke-width: 3; opacity: 0.14; }
+.gd-ring { fill: none; stroke: currentColor; }
+.gd-bolt { fill: none; stroke: var(--vellum); stroke-width: 3; stroke-linecap: round; }
+
+/* Phones: the index becomes a strip of sigils above the page, and the whole screen scrolls. */
+@media (max-width: 760px) {
+  .g-screen--grimoire { overflow: auto; }
+  .grimoire-book { display: block; padding-inline: 1rem; }
+  .grimoire-index { display: flex; gap: 1rem; margin-bottom: 0.8rem; padding: 0.2rem 0.2rem 0.6rem; overflow: auto hidden; }
+  .index-group { flex: none; }
+  .index-group + .index-group { margin-top: 0; }
+  .index-group h3 { margin-left: 0.2rem; white-space: nowrap; }
+  .index-group ul { display: flex; }
+  .index-entry { grid-template-columns: 2rem; width: 2.9rem; padding: 0.4rem; justify-content: center; }
+  .index-name, .index-mark { display: none; }
+  .grimoire-page { overflow: visible; }
+  .page-head { gap: 1rem; }
+  .page-icon { width: 3.8rem; height: 3.8rem; border-radius: 14px; }
+  .page-icon svg { width: 2.4rem; height: 2.4rem; }
+}

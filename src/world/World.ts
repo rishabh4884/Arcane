@@ -683,7 +683,7 @@ export class World {
       lane: plan.lane,
       particles: this.particles,
       mist: this.mist,
-      screen: this.reducedMotion.matches ? { flash: (c, s, m) => this.feedback.flash(c, s * 0.4, m), shake: () => undefined } : this.feedback,
+      screen: this.feedback,
       light: (position, lightColor, intensity, duration, distance) => this.flashLight(position, lightColor, intensity, duration, distance),
       illuminate: (slot, position, lightColor, level, radius) => {
         const light = this.worldLights[slot];

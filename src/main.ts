@@ -144,7 +144,9 @@ function handle(out: EngineOutput, stats: TrackerStats): void {
 let lastFrameError = 0;
 tracker.onFrame = (hands, stats) => {
   try {
-    handle(engine.process(hands, stats.timestamp), stats);
+    const out = engine.process(hands, stats.timestamp);
+    handle(out, stats);
+    game.observe(out);
   } catch (err) {
     const now = performance.now();
     if (now - lastFrameError > 2000) console.error('[arcane] frame error', err);
