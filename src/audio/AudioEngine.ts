@@ -353,12 +353,13 @@ export class AudioEngine {
   }
 
   /** Interface sounds: a soft tick for hovering, a woody knock for choosing. */
-  ui(kind: 'hover' | 'select' | 'back' | 'unlock' | 'story'): void {
+  ui(kind: 'hover' | 'select' | 'back' | 'unlock' | 'story' | 'ready'): void {
     if (!this.ctx) return;
     if (kind === 'hover') this.tone({ type: 'sine', freq: 1760, decay: 0.05, gain: 0.015 });
     else if (kind === 'select') { this.tone({ type: 'triangle', freq: 440, freqEnd: 330, decay: 0.14, gain: 0.07 }); this.noise({ filter: 'bandpass', freq: 1800, q: 3, decay: 0.04, gain: 0.05 }); }
     else if (kind === 'back') this.tone({ type: 'triangle', freq: 330, freqEnd: 220, decay: 0.14, gain: 0.06 });
     else if (kind === 'unlock') [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => this.tone({ type: 'sine', freq: f, decay: 2.2, gain: 0.06, when: i * 0.09, reverb: 1 }));
+    else if (kind === 'ready') [659.25, 783.99].forEach((f, i) => this.tone({ type: 'sine', freq: f, decay: 0.6, gain: 0.03, when: i * 0.12, reverb: 0.6 }));
     else [196, 293.66, 392].forEach((f, i) => this.tone({ type: 'sine', freq: f, attack: 0.4, decay: 3, gain: 0.05, when: i * 0.2, reverb: 1 }));
   }
 

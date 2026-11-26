@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
-export interface EnemyReadout { id:number; position:THREE.Vector3; height:number; name:string; health:number; maximum:number; state:string; progress:number }
-interface Bar { root:HTMLDivElement; fill:HTMLSpanElement; lag:HTMLSpanElement; label:HTMLSpanElement; value:HTMLSpanElement; health:number; displayed:number; x:number; y:number; deadAge:number }
+export interface EnemyReadout { id:number; position:THREE.Vector3; height:number; name:string; health:number; maximum:number; state:string; progress:number; elder:boolean }
+interface Bar { root:HTMLDivElement; fill:HTMLSpanElement; lag:HTMLSpanElement; label:HTMLSpanElement; health:number; displayed:number; x:number; y:number; deadAge:number; age:number }
 interface FloatingDamage { element:HTMLSpanElement; point:THREE.Vector3; age:number }
 
 /** Persistent individual health, delayed damage trails, hit feedback and readable attack intent. */
@@ -23,21 +23,21 @@ export class EnemyIndicators {
       let bar=this.bars.get(enemy.id);
       if(!bar){
         const root=document.createElement('div');root.className='enemy-vital';root.setAttribute('role','meter');root.setAttribute('aria-valuemin','0');root.setAttribute('aria-valuemax',String(enemy.maximum));
-        const label=document.createElement('span');label.className='enemy-vital-name';const value=document.createElement('span');value.className='enemy-vital-value';
-        const track=document.createElement('div');track.className='enemy-vital-track';const lag=document.createElement('span');lag.className='enemy-vital-lag';const fill=document.createElement('span');fill.className='enemy-vital-fill';track.append(lag,fill);root.append(label,value,track);this.root.append(root);
-        bar={root,fill,lag,label,value,health:enemy.maximum,displayed:enemy.maximum,x:0,y:0,deadAge:0};this.bars.set(enemy.id,bar);
+        const label=document.createElement('span');label.className='enemy-vital-name';label.textContent=enemy.name;
+        const track=document.createElement('div');track.className='enemy-vital-track';const lag=document.createElement('span');lag.className='enemy-vital-lag';const fill=document.createElement('span');fill.className='enemy-vital-fill';track.append(lag,fill);root.append(label,track);this.root.append(root);
+        bar={root,fill,lag,label,health:enemy.maximum,displayed:enemy.maximum,x:0,y:0,deadAge:0,age:0};this.bars.set(enemy.id,bar);
       }
       this.projected.copy(enemy.position);this.projected.y+=enemy.height+0.16;this.projected.project(camera);
       const visible=this.projected.z>=-1&&this.projected.z<=1&&Math.abs(this.projected.x)<1.1&&Math.abs(this.projected.y)<1.12;
-      if(!paused){bar.displayed=THREE.MathUtils.lerp(bar.displayed,enemy.health,1-Math.exp(-dt*3));if(enemy.health<=0)bar.deadAge+=dt;}
+      if(!paused){bar.age+=dt;bar.displayed=THREE.MathUtils.lerp(bar.displayed,enemy.health,1-Math.exp(-dt*3));if(enemy.health<=0)bar.deadAge+=dt;}
       bar.root.hidden=!visible||bar.deadAge>1.3;bar.x=(this.projected.x*.5+.5)*width;bar.y=(-this.projected.y*.5+.5)*height;
       bar.fill.style.transform=`scaleX(${Math.max(0,enemy.health/enemy.maximum)})`;bar.lag.style.transform=`scaleX(${Math.max(0,bar.displayed/enemy.maximum)})`;
-      bar.label.textContent=enemy.name;bar.value.textContent=enemy.state==='windup'?'Preparing attack…':enemy.state==='frozen'?'Frozen':enemy.health<=0?'Defeated':`${enemy.health} / ${enemy.maximum}`;
-      bar.root.dataset.state=enemy.state;bar.root.setAttribute('aria-valuenow',String(enemy.health));bar.root.setAttribute('aria-label',`${enemy.name}, ${enemy.health} of ${enemy.maximum} vitality`);bar.health=enemy.health;
+      bar.root.dataset.named=String(enemy.elder||bar.age<2.5);
+      bar.root.dataset.state=enemy.state;bar.root.setAttribute('aria-valuenow',String(enemy.health));bar.root.setAttribute('aria-label',enemy.name);bar.root.setAttribute('aria-valuetext',`${enemy.health} of ${enemy.maximum} vitality${enemy.health <= 0 ? ', defeated' : enemy.state === 'windup' ? ', preparing attack' : enemy.state === 'frozen' ? ', frozen' : ''}`);bar.health=enemy.health;
       if(bar.root.dataset.hit&&Math.abs(bar.displayed-enemy.health)<1)delete bar.root.dataset.hit;
     }
     // Fan overlapping labels upward while keeping their X anchors on their own spirit.
-    const mobile=width<700,barWidth=mobile?78:108,rowHeight=mobile?42:40;
+    const mobile=width<700,barWidth=mobile?78:108,rowHeight=26;
     const placed:Bar[]=[];
     const visibleBars=[...this.bars.values()].filter(bar=>!bar.root.hidden).sort((a,b)=>b.y-a.y);
     for(const bar of visibleBars){

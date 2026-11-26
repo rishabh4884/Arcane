@@ -3,6 +3,8 @@ import type { SpellDef } from '../config/spells.ts';
 import { loadJSON, saveJSON, type KeyValueStore } from '../storage.ts';
 
 const STORAGE_KEY = 'arcane.spellbook.v1';
+const CASTS_KEY = 'arcane.practice.v1';
+const CAST_CAP = 3;
 
 /**
  * Which gesture casts which spell. A gesture casts at most one spell, and a spell has exactly one
@@ -17,6 +19,7 @@ export class SpellBook {
   private listeners = new Set<() => void>();
   /** Spells the caster knows. Base spells always; legendary ones once their boss falls. */
   private known = new Set<string>();
+  private castCounts: Record<string, number> = {};
 
   constructor(spells: readonly SpellDef[], gestures: readonly GestureDef[], store?: KeyValueStore | null) {
     this.spells = spells;
@@ -24,6 +27,26 @@ export class SpellBook {
     this.store = store;
     for (const s of spells) if (s.tier !== 'legend') this.known.add(s.id);
     this.restore();
+    const counts = loadJSON<unknown>(CASTS_KEY, this.store);
+    if (counts && typeof counts === 'object' && !Array.isArray(counts)) {
+      for (const s of spells) for (const g of gestures) {
+        const key = `${s.id}:${g.id}`;
+        const count = (counts as Record<string, unknown>)[key];
+        if (typeof count === 'number' && Number.isFinite(count) && count >= 0) this.castCounts[key] = Math.min(CAST_CAP, Math.floor(count));
+      }
+    }
+  }
+
+  practised(spellId: string): number {
+    const gesture = this.gestureFor(spellId);
+    return gesture ? this.castCounts[`${spellId}:${gesture.id}`] ?? 0 : 0;
+  }
+
+  practise(spellId: string): void {
+    const gesture = this.gestureFor(spellId);
+    if (!gesture || this.practised(spellId) >= CAST_CAP) return;
+    this.castCounts[`${spellId}:${gesture.id}`] = this.practised(spellId) + 1;
+    saveJSON(CASTS_KEY, this.castCounts, this.store);
   }
 
   /** Legendary spells learned so far (base spells are always known). */

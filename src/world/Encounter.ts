@@ -1162,7 +1162,7 @@ export class Encounter {
   private updateIndicators(dt: number, paused: boolean, reducedMotion: boolean): void {
     this.indicators.update(dt, this.camera, this.actors.filter((a) => !a.boss).map((a) => ({
       id: a.id, position: a.spec.hover ? a.figure.group.position.clone().setY(a.figure.group.position.y + a.altitude) : a.figure.group.position,
-      height: a.spec.height * a.figure.group.scale.y, name: a.elder ? `Elder ${a.spec.name.replace(/^The /, '')}` : a.spec.name, health: a.state.health, maximum: a.state.maxHealth, state: a.state.pose, progress: a.state.progress,
+      height: a.spec.height * a.figure.group.scale.y, elder: a.elder, name: a.elder ? `Elder ${a.spec.name.replace(/^The /, '')}` : a.spec.name, health: a.state.health, maximum: a.state.maxHealth, state: a.state.pose, progress: a.state.progress,
     })), paused, reducedMotion);
   }
 

@@ -122,6 +122,7 @@ const LABEL_LIFETIME = 1.8;
 const SIDES: HandSide[] = ['left', 'right'];
 const LEFT_TINT = '#b9dcff';
 const RIGHT_TINT = '#d9ccff';
+const ASH_TINT = new THREE.Color('#777872');
 const LIGHT_POOL = 3;
 const MAX_STUCK_ARROWS = 24;
 const MARKER_OPACITY = 1;
@@ -1061,7 +1062,9 @@ export class World {
     this.particles.update(simulationDt || dt * 0.25);
     this.mist.update(simulationDt || dt * 0.25);
     this.updateStuckArrows(simulationDt);
-    this.screenFx.setWard(this.encounter.player.shield / 45);
+    const p = this.encounter.player;
+    this.screenFx.setLife(this.encounter.currentLevel ? p.health / p.maxHealth : 1);
+    this.screenFx.setWard(this.encounter.currentLevel && p.alive ? (p.shield > 0 ? p.shield / 45 : p.regen > 0 ? 0.35 : 0) : 0, p.shield > 0 ? '#c6d9ff' : '#9fd36b');
     if (render) this.render(renderDt);
   }
 
@@ -1155,6 +1158,9 @@ export class World {
     const goal = has && w.hiddenFor <= 0 ? MARKER_OPACITY : 0;
     w.opacity += (goal - w.opacity) * (1 - Math.exp(-dt * (goal === 0 ? 14 : 6)));
     w.color.copy(w.baseTint).lerp(w.chargeColor, w.charge);
+    const p = this.encounter.player;
+    const life = this.encounter.currentLevel ? THREE.MathUtils.clamp(p.health / p.maxHealth, 0, 1) : 1;
+    w.ring.uniforms.uBase.value.copy(w.baseTint).lerp(ASH_TINT, (1 - life) * 0.5);
     w.ring.uniforms.uOpacity.value = w.opacity;
     w.ring.uniforms.uProgress.value = w.charge;
     w.ring.uniforms.uCharge.value.copy(w.chargeColor);

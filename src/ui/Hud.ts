@@ -20,12 +20,12 @@ export class Hud {
   private readonly status = el('p', { class: 'status', role: 'status' });
   private readonly slots = new Map<string, Slot>();
   private lastStatus = '';
+  private lastHandAt = performance.now();
+  onReady?: () => void;
 
   constructor(root: HTMLElement, book: SpellBook) {
     this.book = book;
-    this.lastStatus = 'Raise a hand in front of the camera';
-    this.status.textContent = this.lastStatus;
-    this.status.dataset.state = 'idle';
+    this.status.hidden = true;
     root.append(this.status, this.dock);
     this.build();
     book.onChange(() => this.build());
@@ -33,18 +33,15 @@ export class Hud {
 
   /** Called every camera frame. `charges` lists every spell currently filling, one per hand at most. */
   update(out: EngineOutput, charges: ReadonlyArray<{ spellId: string; progress: number }>): void {
-    const text = !out.present
-      ? 'Raise a hand in front of the camera'
-      : out.bow
-        ? out.bow.phase === 'arming' ? 'Pinch, then pull back…' : out.bow.phase === 'ready' ? 'Release to fire' : 'Pull farther…'
-        : out.hold
-        ? 'Hold it…'
-        : out.hands.length > 1
-          ? 'Both hands found'
-          : `${out.hands[0]?.side === 'left' ? 'Left' : 'Right'} hand found`;
+    const now = performance.now();
+    if (out.present) this.lastHandAt = now;
+    const text = out.bow
+      ? out.bow.phase === 'arming' ? 'Pinch, then pull back…' : out.bow.phase === 'ready' ? 'Release to fire' : 'Pull farther…'
+      : !out.present && now - this.lastHandAt >= 700 ? 'Raise a hand in front of the camera' : '';
     if (text !== this.lastStatus) {
       this.lastStatus = text;
       this.status.textContent = text;
+      this.status.hidden = !text;
       this.status.dataset.state = out.present ? 'ok' : 'idle';
     }
     for (const [id, slot] of this.slots) {
@@ -69,6 +66,7 @@ export class Hud {
           slot.root.classList.remove('ready');
           void slot.root.offsetWidth;
           slot.root.classList.add('ready');
+          if (cd && cd.total >= 6) this.onReady?.();
         }
       }
     }
@@ -86,6 +84,8 @@ export class Hud {
   flash(spellId: string): void {
     const slot = this.slots.get(spellId);
     if (!slot) return;
+    this.book.practise(spellId);
+    slot.root.classList.toggle('learning', this.book.practised(spellId) < 3);
     slot.root.classList.remove('cast');
     void slot.root.offsetWidth; // restart the CSS animation
     slot.root.classList.add('cast');
@@ -100,14 +100,14 @@ export class Hud {
       const g: GestureDef | undefined = this.book.gestureFor(spell.id);
       const icon = createSpellIcon(spell.id);
       const gesture = el('span', { class: 'gesture' }, g ? `${g.glyph} ${g.name}` : '');
+      const title = `${spell.name} — ${g ? `${g.glyph} ${g.name}: ${g.hint}` : 'unbound'}`;
       const bar = el('span', { class: 'bar' });
       const cooldown = el('span', { class: 'cooldown', 'aria-hidden': 'true' });
       const root = el(
         'div',
-        { class: `slot${spell.tier === 'legend' ? ' is-legend' : ''}`, title: g?.hint ?? '', 'aria-label': `${spell.name}: ${g?.name ?? 'unbound'}` },
+        { class: `slot${spell.tier === 'legend' ? ' is-legend' : ''}${this.book.practised(spell.id) < 3 ? ' learning' : ''}`, title, 'aria-label': `${spell.name}: ${g?.name ?? 'unbound'}` },
         cooldown,
         icon,
-        el('span', { class: 'name' }, spell.name),
         gesture,
         bar,
       );

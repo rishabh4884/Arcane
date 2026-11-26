@@ -24,24 +24,27 @@ const cutoffToSmoothness = (c: number): number => Math.round(((4 - c) / 3.5) * 1
 /** The Spellbook panel: rebind gestures to spells and tune how the detection feels. */
 export class SettingsPanel {
   readonly toggleButton: HTMLButtonElement;
-  private readonly panel = el('aside', { class: 'panel', id: 'spellbook', hidden: true, 'aria-label': 'Spellbook' });
+  private readonly panel = el('aside', { class: 'panel', id: 'spellbook', hidden: true, 'aria-label': 'Settings' });
   private readonly o: SettingsOptions;
   private tuning: Tuning;
+  private opener: HTMLElement | null = null;
 
   constructor(root: HTMLElement, options: SettingsOptions) {
     this.o = options;
     this.tuning = structuredClone(options.tuning);
-    this.toggleButton = el('button', { class: 'tool', type: 'button', 'aria-controls': 'spellbook', 'aria-expanded': 'false', onclick: () => this.toggle() }, 'Spellbook');
+    this.toggleButton = el('button', { class: 'tool', type: 'button', 'aria-controls': 'spellbook', 'aria-expanded': 'false', onclick: () => this.toggle() }, 'Settings');
     root.append(this.toggleButton, this.panel);
     options.book.onChange(() => !this.panel.hidden && this.render());
-    window.addEventListener('keydown', (e) => e.key === 'Escape' && !this.panel.hidden && this.toggle(false));
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.panel.hidden) { e.stopImmediatePropagation(); this.toggle(false); } });
     this.render();
   }
 
   toggle(open = this.panel.hidden): void {
+    if (open && this.panel.hidden) this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.panel.hidden = !open;
     this.toggleButton.setAttribute('aria-expanded', String(open));
     if (open) this.render();
+    else { this.opener?.focus({ preventScroll: true }); this.opener = null; }
   }
 
   private soundControls(): HTMLElement[] {
@@ -78,7 +81,7 @@ export class SettingsPanel {
     return [
       el('h3', {}, 'Graphics'),
       el('label', { class: 'row' }, el('span', { class: 'label' }, 'Quality'), select),
-      el('p', { class: 'note' }, 'Auto keeps the wood smooth on this device and remembers what suits it. Hand tracking shares the graphics chip, so a smoother picture also reads your hands faster.'),
+      el('p', { class: 'note' }, 'Auto adjusts graphics to keep the wood smooth on this device.'),
     ];
   }
 
@@ -140,12 +143,13 @@ export class SettingsPanel {
     );
 
     this.panel.replaceChildren(
-      el('header', {}, el('h2', {}, 'Spellbook'), el('button', { class: 'close', type: 'button', 'aria-label': 'Close spellbook', onclick: () => this.toggle(false) }, '×')),
-      el('p', { class: 'note' }, 'Choose which gesture casts each spell. Pick one that is already used and the two swap. Gestures not assigned to a spell are switched off. Two-hand gestures need both hands in view. If two assigned gestures overlap, the stricter one wins.'),
+      el('header', {}, el('h2', {}, 'Settings'), el('button', { class: 'close', type: 'button', 'aria-label': 'Close settings', onclick: () => this.toggle(false) }, '×')),
+      el('p', { class: 'note' }, 'Choose a gesture for each spell; selecting one already used swaps them.'),
+      el('h3', {}, 'Gestures'),
       ...rows,
       el('h3', {}, 'Feel'),
       el('label', { class: 'row' }, el('span', { class: 'label' }, 'Camera rate'), frameRate),
-      el('p', { class: 'note' }, 'This is the requested cap; camera hardware may deliver less. Press D to see actual camera/inference rates, result age, and raw vs. live hand counts.'),
+      el('p', { class: 'note' }, 'Camera hardware may deliver less than the requested cap; press D for actual rates.'),
       slider('Smoothness', 0, 100, 1, cutoffToSmoothness(this.tuning.smoothing.minCutoff), '', (v) => (this.tuning.smoothing.minCutoff = smoothnessToCutoff(v))),
       slider('Hold time', 150, 800, 10, this.tuning.poseHoldMs, ' ms', (v) => (this.tuning.poseHoldMs = v)),
       slider('Pause between casts', 200, 1500, 50, this.tuning.cooldownMs, ' ms', (v) => (this.tuning.cooldownMs = v)),

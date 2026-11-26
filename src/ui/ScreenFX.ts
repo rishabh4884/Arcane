@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { ScreenFeedback } from '../world/vfx.ts';
+import './vitality.css';
 
 const css = (color: THREE.ColorRepresentation): string => `#${new THREE.Color(color).getHexString()}`;
 
@@ -14,7 +15,11 @@ export class ScreenFX {
   private readonly edgeLayer = document.createElement('div');
   private readonly hurtLayer = document.createElement('div');
   private readonly wardLayer = document.createElement('div');
+  private readonly lifeLayer = document.createElement('div');
   private ward = 0;
+  private wardColor: THREE.ColorRepresentation | null = null;
+  private life = 0;
+  private heartbeat = false;
 
   constructor(container: HTMLElement) {
     this.root.className = 'screen-fx';
@@ -23,7 +28,8 @@ export class ScreenFX {
     this.edgeLayer.className = 'screen-fx-edge';
     this.hurtLayer.className = 'screen-fx-hurt';
     this.wardLayer.className = 'screen-fx-ward';
-    this.root.append(this.wardLayer, this.edgeLayer, this.hurtLayer, this.flashLayer);
+    this.lifeLayer.className = 'screen-fx-life';
+    this.root.append(this.lifeLayer, this.wardLayer, this.edgeLayer, this.hurtLayer, this.flashLayer);
     container.append(this.root);
   }
 
@@ -47,13 +53,29 @@ export class ScreenFX {
     this.pulse(this.hurtLayer, '#b3261e', Math.min(0.85, 0.45 + strength * 0.4), 650);
   }
 
-  /** 0..1 strength of the ward vignette (Aegis shield remaining). */
+  /** 0..1 strength of the ward or healing vignette. */
   setWard(level: number, color: THREE.ColorRepresentation = '#c6d9ff'): void {
     const next = Math.round(Math.max(0, Math.min(1, level)) * 100) / 100;
+    if (next > 0 && color !== this.wardColor) {
+      this.wardColor = color;
+      this.wardLayer.style.setProperty('--fx-color', css(color));
+    }
     if (next === this.ward) return;
     this.ward = next;
-    this.wardLayer.style.setProperty('--fx-color', css(color));
     this.wardLayer.style.opacity = String(next * 0.85);
+  }
+
+  setLife(f: number): void {
+    const next = Math.round(Math.max(0, Math.min(1, (0.6 - f) / 0.6)) * 75) / 100;
+    if (next !== this.life) {
+      this.life = next;
+      this.lifeLayer.style.opacity = String(next);
+    }
+    const heartbeat = f < 0.3;
+    if (heartbeat !== this.heartbeat) {
+      this.heartbeat = heartbeat;
+      this.lifeLayer.classList.toggle('heartbeat', heartbeat);
+    }
   }
 
   dispose(): void {

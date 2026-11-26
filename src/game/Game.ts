@@ -79,7 +79,7 @@ export class Game {
       if (e.key !== 'Escape' || e.repeat) return;
       if (document.querySelector<HTMLElement>('#spellbook')?.hidden === false) return;
       if (this.state === 'level') this.pauseGame();
-      else if (this.state === 'paused') this.resume();
+      else if (this.state === 'paused') { ui('back'); this.resume(); }
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'level' && !(window as unknown as { __arcaneStay?: boolean }).__arcaneStay) this.pauseGame(); });
     const tick = () => {
@@ -175,7 +175,7 @@ export class Game {
 
   private closeGrimoire(): void {
     this.grimoire.hide();
-    if (this.grimoireReturn === 'paused') this.pause.show();
+    if (this.grimoireReturn === 'paused') this.pause.show(this.level ?? undefined);
     else this.toMenu();
   }
 
@@ -211,7 +211,7 @@ export class Game {
   private pauseGame(): void {
     if (this.state !== 'level') return;
     this.setBody('paused');
-    this.pause.show();
+    this.pause.show(this.level ?? undefined);
   }
 
   private resume(): void {
@@ -251,7 +251,7 @@ export class Game {
     this.resolved = true;
     const level = this.level;
     const stats = this.deps.world.snapshot().stats;
-    this.hud.show(level.kind === 'normal' ? 'The wood quiets' : 'It is over', '', 2.6);
+    this.hud.show(level.kind === 'normal' ? 'The wood quiets' : level.kind === 'final' ? 'The ruler falls' : 'The great one is released', '', 2.6);
     const outcome = this.progress.complete(level, stats.time, stats.damageTaken);
     this.deps.book.setLearned(this.progress.learned);
     await wait(2600);

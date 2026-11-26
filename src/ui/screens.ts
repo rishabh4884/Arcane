@@ -19,10 +19,11 @@ import './game.css';
 type Ui = (kind: 'hover' | 'select' | 'back' | 'unlock' | 'story') => void;
 const noop: Ui = () => undefined;
 
-function button(label: string, onClick: () => void, cls = 'g-button', ui: Ui = noop): HTMLButtonElement {
+function button(label: string, onClick: () => void, cls = 'g-button', ui: Ui = noop, sound: 'select' | 'back' | null = 'select'): HTMLButtonElement {
   const b = el('button', { class: cls, type: 'button' }, label);
-  b.addEventListener('click', () => { ui('select'); onClick(); });
+  b.addEventListener('click', () => { if (sound) ui(sound); onClick(); });
   b.addEventListener('pointerenter', () => ui('hover'));
+  b.addEventListener('focus', () => { if (b.matches(':focus-visible')) ui('hover'); });
   return b;
 }
 
@@ -30,6 +31,11 @@ function screen(id: string, label: string): HTMLElement {
   const s = el('section', { class: `g-screen g-screen--${id}`, id: `screen-${id}`, 'aria-label': label, hidden: true });
   document.body.append(s);
   return s;
+}
+
+function conceal(node: HTMLElement): void {
+  if (node.contains(document.activeElement) && document.activeElement instanceof HTMLElement) document.activeElement.blur();
+  node.hidden = true;
 }
 
 const gestureOf = (spell: SpellDef) => GESTURES.find((g) => g.id === spell.defaultGesture);
@@ -80,8 +86,9 @@ export class LoadingScreen {
   }
 
   hide(): void {
+    if (this.root.contains(document.activeElement) && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     this.root.classList.add('leaving');
-    window.setTimeout(() => { this.root.hidden = true; cancelAnimationFrame(this.raf); }, 900);
+    window.setTimeout(() => { conceal(this.root); cancelAnimationFrame(this.raf); }, 900);
   }
 
   /** Drifting embers behind the title. */
@@ -147,7 +154,7 @@ export class MenuScreen {
     this.cont.append(
       button('Journey', this.actions.onJourney, 'g-button', this.ui),
       button('Grimoire', this.actions.onGrimoire, 'g-button', this.ui),
-      button('Spellbook & settings', this.actions.onSettings, 'g-button', this.ui),
+      button('Settings', this.actions.onSettings, 'g-button', this.ui),
     );
     if (progress.started) {
       const reset = button('Forget the journey', () => { if (window.confirm('Start over? Your progress and learned spells will be forgotten.')) this.actions.onReset(); }, 'g-button g-button--quiet', this.ui);
@@ -159,7 +166,7 @@ export class MenuScreen {
     this.root.classList.remove('leaving');
   }
 
-  hide(): void { this.root.hidden = true; }
+  hide(): void { conceal(this.root); }
 }
 
 /* ═════════════════════════════════ JOURNEY ═════════════════════════════════ */
@@ -174,13 +181,13 @@ export class JourneyScreen {
   constructor(private readonly onBegin: (level: LevelDef) => void, private readonly onBack: () => void, private readonly ui: Ui = noop) {
     this.root.append(
       el('header', { class: 'g-header' },
-        button('← Back', onBack, 'g-button g-button--quiet', ui),
+        button('← Back', onBack, 'g-button g-button--quiet', ui, null),
         el('div', {}, el('p', { class: 'g-eyebrow' }, 'Forty levels · four reaches'), el('h2', {}, 'The Journey')),
       ),
       this.track,
       this.card,
     );
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) { if (!this.card.hidden) this.card.hidden = true; else onBack(); } });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) { e.stopImmediatePropagation(); if (!this.card.hidden) { this.ui('back'); conceal(this.card); } else onBack(); } });
   }
 
   show(progress: Progress): void {
@@ -214,6 +221,7 @@ export class JourneyScreen {
         if (unlocked) {
           node.addEventListener('click', () => { this.ui('select'); this.openCard(level, progress); });
           node.addEventListener('pointerenter', () => this.ui('hover'));
+          node.addEventListener('focus', () => { if (node.matches(':focus-visible')) this.ui('hover'); });
         } else node.disabled = true;
         path.append(node);
       });
@@ -228,6 +236,7 @@ export class JourneyScreen {
     this.root.hidden = false;
     const next = this.track.querySelector<HTMLElement>('.is-next');
     next?.scrollIntoView({ block: 'center' });
+    next?.focus({ preventScroll: true });
   }
 
   private openCard(level: LevelDef, progress: Progress): void {
@@ -245,14 +254,14 @@ export class JourneyScreen {
       reward ? el('p', { class: 'card-reward' }, 'Surrenders a legendary spell: ', el('strong', {}, reward.name)) : '',
       record ? el('p', { class: 'card-record' }, `Best: ${fmtTime(record.time)} · ${'★'.repeat(record.stars)}`) : '',
       el('div', { class: 'card-actions' },
-        button('Close', () => { this.card.hidden = true; }, 'g-button g-button--quiet', this.ui),
+        button('Close', () => { conceal(this.card); }, 'g-button g-button--quiet', this.ui, 'back'),
         button(record ? 'Play again' : 'Begin', () => this.onBegin(level), 'g-button g-button--primary', this.ui)),
     );
     this.card.hidden = false;
     this.card.querySelector<HTMLButtonElement>('.g-button--primary')?.focus({ preventScroll: true });
   }
 
-  hide(): void { this.root.hidden = true; this.card.hidden = true; }
+  hide(): void { conceal(this.root); conceal(this.card); }
 }
 
 /* ═════════════════════════════════ GRIMOIRE ═════════════════════════════════ */
@@ -264,12 +273,12 @@ export class GrimoireScreen {
   constructor(private readonly book: SpellBook, private readonly onBack: () => void, ui: Ui = noop) {
     this.root.append(
       el('header', { class: 'g-header' },
-        button('← Back', onBack, 'g-button g-button--quiet', ui),
+        button('← Back', onBack, 'g-button g-button--quiet', ui, null),
         el('div', {}, el('p', { class: 'g-eyebrow' }, 'Every spell has its own movement'), el('h2', {}, 'The Grimoire'))),
-      el('p', { class: 'grimoire-primer' }, 'Aim with the marker that follows your palm. Hold a sign until its ring fills; sweeps, strikes and circles cast the moment they are recognised. Legendary spells are taken from the things that rule the wood.'),
+      el('p', { class: 'grimoire-primer' }, 'Aim with your palm and hold a sign until its ring fills; sweeps, strikes and circles cast when recognised.'),
       this.grid,
     );
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) onBack(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.root.hidden) { e.stopImmediatePropagation(); onBack(); } });
   }
 
   show(): void {
@@ -281,19 +290,20 @@ export class GrimoireScreen {
         el('div', { class: 'spell-card-icon' }, createSpellIcon(spell.id)),
         el('div', { class: 'spell-card-body' },
           el('p', { class: 'spell-card-tier' }, spell.tier === 'legend' ? (known ? 'Legendary' : 'Sealed · Legendary') : 'Known'),
-          el('h3', {}, known ? spell.name : spell.name),
-          el('p', { class: 'spell-card-gesture' }, g ? `${g.glyph}  ${g.name}` : ''),
+          el('h3', {}, spell.name),
+          known ? el('p', { class: 'spell-card-gesture' }, g ? `${g.glyph}  ${g.name}` : '') : '',
           el('p', { class: 'spell-card-hint' }, known ? g?.hint ?? '' : `Defeat the ruler of level ${spell.learnedAt} to learn it.`),
-          el('p', { class: 'spell-card-effect' }, spell.effectText),
-          el('p', { class: 'spell-card-lore' }, `“${spell.lore}”`),
-          el('p', { class: 'spell-card-cd' }, `Returns in ${spell.cooldown}s`)));
+          known ? el('p', { class: 'spell-card-effect' }, spell.effectText) : '',
+          known ? el('p', { class: 'spell-card-lore' }, `“${spell.lore}”`) : '',
+          known ? el('p', { class: 'spell-card-cd' }, `Returns in ${spell.cooldown}s`) : ''));
       card.style.setProperty('--spell', spell.color);
       this.grid.append(card);
     }
     this.root.hidden = false;
+    this.root.querySelector<HTMLButtonElement>('.g-button')?.focus({ preventScroll: true });
   }
 
-  hide(): void { this.root.hidden = true; }
+  hide(): void { conceal(this.root); }
 }
 
 /* ═════════════════════════════════ PAUSE ═════════════════════════════════ */
@@ -302,18 +312,22 @@ export interface PauseActions { onResume(): void; onRestart(): void; onGrimoire(
 
 export class PauseScreen {
   readonly root = screen('pause', 'Paused');
+  private readonly eyebrow = el('p', { class: 'g-eyebrow' }, 'The wood waits');
   constructor(actions: PauseActions, ui: Ui = noop) {
     this.root.append(el('div', { class: 'pause-panel' },
-      el('p', { class: 'g-eyebrow' }, 'The wood waits'),
+      this.eyebrow,
       el('h2', {}, 'Paused'),
-      button('Resume', actions.onResume, 'g-button g-button--primary', ui),
+      button('Resume', actions.onResume, 'g-button g-button--primary', ui, 'back'),
       button('Restart level', actions.onRestart, 'g-button', ui),
       button('Grimoire', actions.onGrimoire, 'g-button', ui),
-      button('Spellbook & settings', actions.onSettings, 'g-button', ui),
-      button('Leave to the Journey', actions.onLeave, 'g-button g-button--quiet', ui)));
+      button('Settings', actions.onSettings, 'g-button', ui),
+      button('Leave to the Journey', actions.onLeave, 'g-button g-button--quiet', ui, 'back')));
   }
-  show(): void { this.root.hidden = false; this.root.querySelector<HTMLButtonElement>('.g-button--primary')?.focus({ preventScroll: true }); }
-  hide(): void { this.root.hidden = true; }
+  show(level?: LevelDef): void {
+    this.eyebrow.textContent = level ? `${CHAPTERS[level.chapter - 1].numeral} · ${CHAPTERS[level.chapter - 1].name} · Level ${level.index}` : 'The wood waits';
+    this.root.hidden = false; this.root.querySelector<HTMLButtonElement>('.g-button--primary')?.focus({ preventScroll: true });
+  }
+  hide(): void { conceal(this.root); }
 }
 
 /* ═════════════════════════════════ RESULTS ═════════════════════════════════ */
@@ -326,8 +340,7 @@ export class ResultScreen {
     const chapter = CHAPTERS[level.chapter - 1];
     const parts: Array<Node | string> = [
       el('p', { class: 'g-eyebrow' }, `${chapter.numeral} · ${chapter.name} · Level ${level.index}`),
-      el('h2', { class: 'result-title' }, level.kind === 'final' ? 'The ruler falls' : level.kind === 'sub' ? 'The great one is released' : 'The wood quiets'),
-      el('p', { class: 'result-name' }, level.name),
+      el('h2', { class: 'result-title' }, level.name),
       el('p', { class: 'result-stars', 'aria-label': `${stars} of 3 stars` }, ...[1, 2, 3].map((i) => el('span', { class: i <= stars ? 'on' : '' }, '★'))),
       el('dl', { class: 'result-stats' },
         el('div', {}, el('dt', {}, 'Time'), el('dd', {}, fmtTime(stats.time))),
@@ -371,19 +384,16 @@ export class ResultScreen {
     this.root.querySelector<HTMLButtonElement>('.g-button--primary')?.focus({ preventScroll: true });
   }
 
-  hide(): void { this.root.hidden = true; }
+  hide(): void { conceal(this.root); }
 }
 
 /* ═════════════════════════════════ IN-LEVEL HUD ═════════════════════════════════ */
 
 export class GameHud {
   readonly root = el('section', { class: 'game-hud', hidden: true, 'aria-label': 'Level' });
-  private readonly where = el('div', { class: 'hud-where' });
-  private readonly health = el('div', { class: 'hud-vital', role: 'meter', 'aria-valuemin': '0', 'aria-valuemax': '100' });
+  private readonly health = el('div', { class: 'hud-vital', role: 'meter', 'aria-label': 'Vitality', 'aria-valuemin': '0', 'aria-valuemax': '100' });
   private readonly healthFill = el('span', { class: 'hud-vital-fill' });
   private readonly healthGhost = el('span', { class: 'hud-vital-ghost' });
-  private readonly healthValue = el('span', { class: 'hud-vital-value' });
-  private readonly ward = el('span', { class: 'hud-ward' });
   private readonly waves = el('div', { class: 'hud-waves' });
   private readonly boss = el('div', { class: 'hud-boss', hidden: true });
   private readonly bossName = el('p', { class: 'hud-boss-name' });
@@ -394,21 +404,30 @@ export class GameHud {
   private ghost = 100;
   private bossGhostValue = 1;
   private bannerTimer = 0;
+  private tipTimer = 0;
+  private healthTimer = 0;
+  private healthValue = -1;
+  private waveKey = '';
+  private bossKey = '';
 
   constructor(parent: HTMLElement, onPause: () => void) {
     const pause = el('button', { class: 'hud-pause', type: 'button', 'aria-label': 'Pause (Esc)' }, el('span'), el('span'));
     pause.addEventListener('click', onPause);
-    this.health.append(el('span', { class: 'hud-vital-label' }, 'Vitality'), this.healthValue, el('span', { class: 'hud-vital-track' }, this.healthGhost, this.healthFill), this.ward);
+    this.health.append(this.healthGhost, this.healthFill);
     this.boss.append(this.bossName, el('span', { class: 'hud-boss-track' }, this.bossGhost, this.bossFill, el('i', { style: { left: '33%' } }), el('i', { style: { left: '67%' } })));
-    this.root.append(el('div', { class: 'hud-top' }, el('div', { class: 'hud-left' }, this.where, this.health), this.waves, pause), this.boss, this.banner, this.tip);
+    this.root.append(el('div', { class: 'hud-top' }, this.health, this.waves, pause), this.boss, this.banner, this.tip);
     parent.append(this.root);
   }
 
   start(level: LevelDef): void {
     const chapter = CHAPTERS[level.chapter - 1];
-    this.where.replaceChildren(el('span', { class: 'hud-chapter' }, `${chapter.numeral} · ${chapter.name}`), el('span', { class: 'hud-level' }, `${level.index}. ${level.name}`));
     this.boss.hidden = true;
     this.ghost = 100;
+    this.healthValue = -1;
+    this.healthTimer = 0;
+    this.tipTimer = 10.6;
+    this.waveKey = '';
+    this.bossKey = '';
     this.bossGhostValue = 1;
     this.tip.textContent = level.tip ?? '';
     this.tip.hidden = !level.tip;
@@ -416,7 +435,7 @@ export class GameHud {
     this.show(level.name, level.kind === 'final' ? 'The ruler of this reach awaits' : `${chapter.numeral} · Level ${level.index}`, 2.6);
   }
 
-  hide(): void { this.root.hidden = true; }
+  hide(): void { conceal(this.root); }
 
   /** A large centred line that fades: wave calls, boss names, the end of a fight. */
   show(text: string, sub = '', seconds = 2.4): void {
@@ -435,16 +454,25 @@ export class GameHud {
     if (this.ghost < hp) this.ghost = hp;
     this.healthFill.style.transform = `scaleX(${hp / 100})`;
     this.healthGhost.style.transform = `scaleX(${this.ghost / 100})`;
-    this.healthValue.textContent = `${Math.ceil(hp)}`;
-    this.health.setAttribute('aria-valuenow', String(Math.ceil(hp)));
+    const value = Math.ceil(hp);
+    if (value !== this.healthValue) {
+      this.healthValue = value;
+      this.health.setAttribute('aria-valuenow', String(value));
+      this.healthTimer = 2.2;
+    }
+    this.healthTimer -= dt;
+    this.health.classList.toggle('shown', this.healthTimer > 0 || hp < 30);
     this.health.dataset.low = String(hp < 30);
-    this.ward.textContent = s.player.veil > 0 ? `Moonveil ${Math.ceil(s.player.veil)}s` : s.player.shield > 0 ? `Ward ${Math.ceil(s.player.shield)} · ${Math.ceil(s.player.shieldTime)}s` : s.player.regen > 0 ? 'Blooming' : '';
+    this.tipTimer -= dt;
+    if (this.tipTimer <= 0) this.tip.hidden = true;
     this.root.dataset.dark = String(s.player.darkness > 0);
-    if (s.waves > 0) {
+    const waveKey = `${s.waves}:${s.wave}:${s.mode}:${s.alive}`;
+    if (waveKey !== this.waveKey) {
+      this.waveKey = waveKey;
+      this.waves.setAttribute('aria-label', s.waves > 0 ? `Wave ${Math.max(1, s.wave)} of ${s.waves}` : '');
       const dots = Array.from({ length: s.waves }, (_, i) => el('i', { class: i < s.wave - (s.mode === 'wave' ? 1 : 0) || s.mode === 'boss' || s.mode === 'boss-intro' || s.mode === 'won' ? 'done' : i === s.wave - 1 ? 'now' : '' }));
-      const label = s.mode === 'boss' || s.mode === 'boss-intro' ? 'The great one' : s.mode === 'breather' ? `Wave ${s.wave} cleared` : `Wave ${Math.max(1, s.wave)} of ${s.waves}`;
-      this.waves.replaceChildren(el('span', {}, label), el('span', { class: 'hud-wave-dots' }, ...dots), el('span', { class: 'hud-left-count' }, s.mode === 'wave' ? `${s.alive} remain` : ''));
-    } else this.waves.replaceChildren(el('span', {}, s.boss ? 'The ruler of the reach' : ''));
+      this.waves.replaceChildren(el('span', { class: 'hud-wave-dots', 'aria-hidden': 'true' }, ...dots), el('span', { class: 'hud-left-count' }, s.mode === 'wave' ? `${s.alive} remain` : ''));
+    }
     if (s.boss) {
       this.boss.hidden = false;
       const f = Math.max(0, s.boss.health / s.boss.max);
@@ -452,7 +480,7 @@ export class GameHud {
       if (this.bossGhostValue < f) this.bossGhostValue = f;
       this.bossFill.style.transform = `scaleX(${f})`;
       this.bossGhost.style.transform = `scaleX(${this.bossGhostValue})`;
-      this.bossName.replaceChildren(el('strong', {}, s.boss.name), el('span', {}, s.boss.title));
+      if (s.boss.name !== this.bossKey) { this.bossKey = s.boss.name; this.bossName.textContent = s.boss.name; }
     } else this.boss.hidden = true;
   }
 

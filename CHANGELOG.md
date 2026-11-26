@@ -6,6 +6,11 @@ All notable changes to ARcane are recorded here. The format follows
 
 ## [Unreleased]
 
+### Interface
+- Simplified the in-level HUD, spell dock, enemy bars, menus and screen transitions.
+- Added health-driven screen edges and palm markers, spell practice hints and a ready chime.
+- Fixed overlay stacking, Escape handling and reduced-motion animation loops.
+
 ### Changed (second pass)
 - Hand tracking starts on the page and moves itself to a CPU worker on devices where the page is too
   slow for it, so it no longer blocks frames or competes for the GPU; the choice is remembered.
@@ -21,6 +26,7 @@ All notable changes to ARcane are recorded here. The format follows
 - The hand markers moved, stopped and moved again at the tracker's pace (12-20 results a second off
   Apple silicon). Between results they now carry on at the hand's own speed for up to one interval
   (`CursorGlide`), so they move on every drawn frame without trailing further behind.
+- The tracking view (D) sits above the vitality line.
 
 ### Added (second pass)
 - `?bench&diagnose` and `?bench&draws`, and `tools/bench-serve.mjs` to collect results from phones and

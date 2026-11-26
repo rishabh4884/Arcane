@@ -46,7 +46,7 @@
 .enemy-vital { position:absolute; left:0; top:0; width:108px; color:#edf0d4; text-align:center; text-shadow:0 1px 4px #142d2a; transform-origin:center bottom; }
 .enemy-vital[hidden] { display:none; }
 .enemy-vital-name { display:block; font:italic 500 .69rem var(--serif); line-height:1.2; }
-.enemy-vital-value { display:block; margin:2px 0 4px; font-size:.58rem; font-variant-numeric:tabular-nums; color:#d2ddbf; }
+.enemy-vital[data-named='false'] .enemy-vital-name { display:none; }
 .enemy-vital-track { position:relative; height:4px; overflow:hidden; background:rgba(16,40,35,.8); border-radius:1px; box-shadow:0 0 0 1px rgba(218,229,191,.25); }
 .enemy-vital-fill, .enemy-vital-lag { position:absolute; inset:0; transform-origin:left; }
 .enemy-vital-fill { background:#b4c98b; }

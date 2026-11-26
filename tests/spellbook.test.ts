@@ -42,6 +42,55 @@ describe('config integrity', () => {
   });
 });
 
+describe('spell practice', () => {
+  it('persists capped counts separately from bindings', () => {
+    const store = memory();
+    const book = new SpellBook(SPELLS, GESTURES, store);
+    const id = SPELLS[0].id;
+    let changes = 0;
+    book.onChange(() => changes++);
+    expect(book.practised(id)).toBe(0);
+    for (let i = 0; i < 5; i++) book.practise(id);
+    expect(changes).toBe(0);
+    book.practise('unknown');
+    expect(book.practised(id)).toBe(3);
+    expect(book.practised('unknown')).toBe(0);
+    expect(new SpellBook(SPELLS, GESTURES, store).practised(id)).toBe(3);
+    expect(JSON.parse(store.data['arcane.practice.v1'])).toEqual({ [`${id}:${SPELLS[0].defaultGesture}`]: 3 });
+    expect(store.data['arcane.spellbook.v1']).toBeUndefined();
+  });
+
+  it('tracks practice separately after rebinding', () => {
+    const store = memory();
+    const book = new SpellBook(SPELLS, GESTURES, store);
+    const id = SPELLS[0].id;
+    book.practise(id);
+    book.assign(id, 'circle');
+    expect(book.practised(id)).toBe(0);
+    book.practise(id);
+    book.practise(id);
+    book.assign(id, SPELLS[0].defaultGesture);
+    expect(book.practised(id)).toBe(1);
+    book.assign(id, 'circle');
+    expect(new SpellBook(SPELLS, GESTURES, store).practised(id)).toBe(2);
+  });
+
+  it('ignores corrupt counts and tolerates unavailable storage', () => {
+    const id = SPELLS[0].id;
+    const store = memory({ 'arcane.practice.v1': JSON.stringify({ [`${id}:${SPELLS[0].defaultGesture}`]: '3', unknown: 2 }) });
+    const book = new SpellBook(SPELLS, GESTURES, store);
+    expect(book.practised(id)).toBe(0);
+    book.practise(id);
+    expect(book.practised(id)).toBe(1);
+    const unavailable = new SpellBook(SPELLS, GESTURES, { getItem: () => { throw Error(); }, setItem: () => { throw Error(); } });
+    unavailable.practise(id);
+    expect(unavailable.practised(id)).toBe(1);
+    const noStore = new SpellBook(SPELLS, GESTURES, null);
+    expect(() => noStore.practise(id)).not.toThrow();
+    expect(noStore.practised(id)).toBe(1);
+  });
+});
+
 describe('SpellBook', () => {
   it('starts from the defaults', () => {
     const book = new SpellBook(SPELLS, GESTURES, memory());

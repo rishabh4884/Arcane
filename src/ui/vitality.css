@@ -1,0 +1,10 @@
+.screen-fx > .screen-fx-life {
+  inset: -8%;
+  background: radial-gradient(ellipse at center, transparent 35%, rgba(12, 11, 10, .55) 72%, #080807 100%);
+  transition: opacity 400ms ease;
+}
+.screen-fx-life.heartbeat { animation: life-heartbeat 2.4s ease-in-out infinite; }
+@keyframes life-heartbeat { 50% { transform: scale(.96); } }
+@media (prefers-reduced-motion: reduce) {
+  .screen-fx-life.heartbeat { animation: none; }
+}

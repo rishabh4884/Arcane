@@ -12,6 +12,7 @@ describe('AudioEngine without a browser audio context', () => {
       audio.setCharge('left', 0.5);
       audio.setBowDraw(0.4);
       audio.setBowDraw(null);
+      audio.ui('ready');
     }).not.toThrow();
   });
 

@@ -12,7 +12,7 @@ import { loadJSON, saveJSON } from './storage.ts';
 import { HandTracker, type TrackerStats } from './tracking/HandTracker.ts';
 import type { HandSide } from './tracking/types.ts';
 import { DebugOverlay } from './ui/DebugOverlay.ts';
-import { el, qs } from './ui/dom.ts';
+import { qs } from './ui/dom.ts';
 import { Hud } from './ui/Hud.ts';
 import { SettingsPanel } from './ui/SettingsPanel.ts';
 import { World } from './world/World.ts';
@@ -47,21 +47,13 @@ const tracker = new HandTracker(tuning.cameraFps);
 
 const hudRoot = qs('#hud');
 const hud = new Hud(hudRoot, book);
+hud.onReady = () => { if (document.body.matches('.is-playing:not(.is-paused)')) audio.ui('ready'); };
 const debug = new DebugOverlay(hudRoot);
 debug.renderInfo = () => {
   const q = world.quality();
   const gpu = q.gpuMs !== null ? ` · gpu ${q.gpuMs.toFixed(1)}ms` : '';
   return `${q.fps.toFixed(0)} fps · ${q.mode} ${q.rung + 1}/${q.rungs} · ${q.ratio}x${gpu}`;
 };
-const soundButton = el('button', { class: 'sound-tool', type: 'button', onclick: () => audio.toggleMuted() });
-const renderSound = () => {
-  soundButton.textContent = audio.muted ? 'Sound off' : 'Sound on';
-  soundButton.setAttribute('aria-pressed', String(!audio.muted));
-  soundButton.setAttribute('aria-label', audio.muted ? 'Turn sound on (M)' : 'Turn sound off (M)');
-};
-audio.onChange(renderSound);
-renderSound();
-document.body.append(soundButton);
 window.addEventListener('keydown', (event) => {
   if ((event.key === 'm' || event.key === 'M') && !event.metaKey && !event.ctrlKey && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) {
     audio.toggleMuted();
