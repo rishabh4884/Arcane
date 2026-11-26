@@ -59,10 +59,6 @@
 }
 @container (max-width: 26rem) { .page-stage { grid-template-columns: 1fr; } }
 
-.page-rebind { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-top: 0.9rem; }
-.page-rebind span { color: var(--mist); font-size: 0.88rem; }
-.page-rebind select { min-width: min(100%, 16rem); min-height: 2.6rem; padding: 0.4rem 0.7rem; border: 1px solid var(--panel-line); border-radius: 10px; background: var(--ink-solid); color: var(--vellum); }
-.page-note { margin: 0.55rem 0 0; color: var(--lantern); font-size: 0.85rem; }
 .page-effect { max-width: 62ch; margin: 0; color: #d6dccb; }
 .page-facts { display: flex; flex-wrap: wrap; gap: 0.3rem 1.4rem; margin: 0.6rem 0 0; padding: 0; color: var(--mist); font-size: 0.85rem; list-style: none; }
 

@@ -19,11 +19,12 @@ export interface SettingsOptions {
   sound?: { readonly volume: number; readonly muted: boolean; setVolume(v: number): void; setMuted(m: boolean): void };
 }
 
+const ADMIN_CODE = 'admin69';
 const smoothnessToCutoff = (s: number): number => 4 - (s / 100) * 3.5;
 const cutoffToSmoothness = (c: number): number => Math.round(((4 - c) / 3.5) * 100);
 
-/** A gesture dropdown for one spell, grouped by kind. Picking a gesture rebinds the spell (`pick`). */
-export function gestureSelect(book: SpellBook, spell: SpellDef, pick = (gestureId: string) => book.assign(spell.id, gestureId)): HTMLSelectElement {
+/** A gesture dropdown for one spell, grouped by kind. Picking a gesture rebinds the spell. */
+function gestureSelect(book: SpellBook, spell: SpellDef): HTMLSelectElement {
   const current = book.gestureFor(spell.id);
   const option = (g: GestureDef) => {
     const opt = el('option', { value: g.id }, `${g.glyph} ${g.name}${isDualGesture(g) ? ' · 2 hands' : ''}`);
@@ -33,7 +34,7 @@ export function gestureSelect(book: SpellBook, spell: SpellDef, pick = (gestureI
   const groups = (Object.keys(GESTURE_GROUPS) as GestureGroup[]).map((key) =>
     el('optgroup', { label: GESTURE_GROUPS[key] }, ...book.gestures.filter((g) => g.group === key).map(option)),
   );
-  return el('select', { 'aria-label': `Gesture for ${spell.name}`, onchange: (e: Event) => pick((e.target as HTMLSelectElement).value) }, ...groups);
+  return el('select', { 'aria-label': `Gesture for ${spell.name}`, onchange: (e: Event) => book.assign(spell.id, (e.target as HTMLSelectElement).value) }, ...groups);
 }
 
 /** The Spellbook panel: rebind gestures to spells and tune how the detection feels. */
@@ -42,6 +43,9 @@ export class SettingsPanel {
   private readonly panel = el('aside', { class: 'panel', id: 'spellbook', hidden: true, 'aria-label': 'Settings' });
   private readonly o: SettingsOptions;
   private tuning: Tuning;
+  private adminOpen = false;
+  private adminUnlocked = false;
+  private typed = '';
   private opener: HTMLElement | null = null;
 
   constructor(root: HTMLElement, options: SettingsOptions) {
@@ -51,6 +55,7 @@ export class SettingsPanel {
     root.append(this.toggleButton, this.panel);
     options.book.onChange(() => !this.panel.hidden && this.render());
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.panel.hidden) { e.stopImmediatePropagation(); this.toggle(false); } });
+    window.addEventListener('keydown', (e) => this.trySecret(e), { capture: true });
     this.render();
   }
 
@@ -59,7 +64,7 @@ export class SettingsPanel {
     this.panel.hidden = !open;
     this.toggleButton.setAttribute('aria-expanded', String(open));
     if (open) this.render();
-    else { this.opener?.focus({ preventScroll: true }); this.opener = null; }
+    else { this.adminOpen = false; this.opener?.focus({ preventScroll: true }); this.opener = null; }
   }
 
   private soundControls(): HTMLElement[] {
@@ -100,7 +105,7 @@ export class SettingsPanel {
     ];
   }
 
-  private render(): void {
+  private renderAdmin(): void {
     const { book } = this.o;
     const rows = book.available.map((spell) => {
       const current = book.gestureFor(spell.id);
@@ -112,6 +117,42 @@ export class SettingsPanel {
         el('p', { class: 'hint' }, current?.hint ?? ''),
       );
     });
+    this.panel.replaceChildren(
+      this.header('Admin · Spell assignment'),
+      el('p', { class: 'note' }, 'Choose a gesture for each spell; selecting one already used swaps them.'),
+      ...rows,
+      el('button', { class: 'reset', type: 'button', onclick: () => book.resetToDefaults() }, 'Restore gesture defaults'),
+    );
+  }
+
+  private header(title: string): HTMLElement {
+    return el('header', {}, el('h2', {}, title), el('button', { class: 'close', type: 'button', 'aria-label': 'Close settings', onclick: () => this.toggle(false) }, '×'));
+  }
+
+  private openAdmin(): void {
+    this.adminOpen = true;
+    this.toggle(true);
+    this.panel.scrollTop = 0;
+    this.panel.querySelector<HTMLElement>('.close')?.focus();
+  }
+
+  /** Typing the admin code anywhere outside a field unlocks spell assignment for this session. */
+  private trySecret(event: KeyboardEvent): void {
+    if (event.repeat || event.metaKey || event.ctrlKey || event.altKey || event.key.length !== 1) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement) return;
+    this.typed = (this.typed + event.key.toLowerCase()).slice(-ADMIN_CODE.length);
+    let matched = this.typed.length;
+    while (matched && !this.typed.endsWith(ADMIN_CODE.slice(0, matched))) matched--;
+    // Keep the code's letters from also firing single-key shortcuts (M mutes, D shows tracking).
+    if (matched >= 2) { event.preventDefault(); event.stopImmediatePropagation(); }
+    if (matched < ADMIN_CODE.length) return;
+    this.typed = '';
+    this.adminUnlocked = true;
+    this.openAdmin();
+  }
+
+  private render(): void {
+    if (this.adminOpen) { this.renderAdmin(); return; }
 
     const slider = (label: string, min: number, max: number, step: number, value: number, unit: string, set: (v: number) => void) => {
       const out = el('output', {}, `${value}${unit}`);
@@ -143,10 +184,7 @@ export class SettingsPanel {
     );
 
     this.panel.replaceChildren(
-      el('header', {}, el('h2', {}, 'Settings'), el('button', { class: 'close', type: 'button', 'aria-label': 'Close settings', onclick: () => this.toggle(false) }, '×')),
-      el('p', { class: 'note' }, 'Choose a gesture for each spell; selecting one already used swaps them.'),
-      el('h3', {}, 'Gestures'),
-      ...rows,
+      this.header('Settings'),
       el('h3', {}, 'Feel'),
       el('label', { class: 'row' }, el('span', { class: 'label' }, 'Camera rate'), frameRate),
       el('p', { class: 'note' }, 'Camera hardware may deliver less than the requested cap; press D for actual rates.'),
@@ -161,13 +199,13 @@ export class SettingsPanel {
         class: 'reset',
         type: 'button',
         onclick: () => {
-          book.resetToDefaults();
           this.o.graphics?.set('auto');
           this.tuning = structuredClone(this.o.defaults);
           this.o.onTuning(this.tuning);
           this.render();
         },
       }, 'Restore defaults'),
+      ...(this.adminUnlocked ? [el('button', { class: 'reset', type: 'button', onclick: () => this.openAdmin() }, 'Admin · Spell assignment')] : []),
     );
   }
 }

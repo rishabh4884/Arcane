@@ -6,7 +6,6 @@ import { HAND_CONNECTIONS } from '../tracking/types.ts';
 import { el } from './dom.ts';
 import { createGestureDiagram } from './gesture-diagram.ts';
 import { button, conceal, noop, screen, type Ui } from './screens.ts';
-import { gestureSelect } from './SettingsPanel.ts';
 import { createSpellIcon } from './spell-icons.ts';
 import './grimoire.css';
 
@@ -14,8 +13,8 @@ import './grimoire.css';
  * THE GRIMOIRE
  * ────────────
  * An open book: every spell down the left, one page on the right. A known spell's page shows its
- * movement performed by a drawn hand beside the caster's own (live from the camera), lets the
- * caster rebind it, and counts practice casts. A sealed page says which ruler holds it.
+ * movement performed by a drawn hand beside the caster's own (live from the camera)
+ * and counts practice casts. A sealed page says which ruler holds it.
  * Practice never casts: the world ignores casts while a menu or pause is up.
  */
 
@@ -41,7 +40,6 @@ export class GrimoireScreen {
   private readonly page = el('article', { class: 'grimoire-page', id: 'grimoire-page', 'aria-labelledby': 'grimoire-page-title' });
   private readonly entries = new Map<string, HTMLButtonElement>();
   private selected: SpellDef = SPELLS[0];
-  private note = '';
 
   // Practice: the caster's hands, the hold meter, and one status line that only speaks on change.
   private readonly canvas = el('canvas', { class: 'practice-hands', width: W, height: H });
@@ -204,7 +202,6 @@ export class GrimoireScreen {
     if (spell === this.selected) return;
     this.ui('hover');
     this.selected = spell;
-    this.note = '';
     this.notice = null;
     this.trails.clear();
     this.view = null;
@@ -244,10 +241,9 @@ export class GrimoireScreen {
   private renderPage(): void {
     const spell = this.selected, known = this.book.isKnown(spell.id), legend = spell.tier === 'legend';
     const g = this.book.gestureFor(spell.id);
-    const refocus = document.activeElement instanceof HTMLSelectElement && this.page.contains(document.activeElement);
     this.page.className = `grimoire-page${known ? '' : ' is-sealed'}`;
     this.page.style.setProperty('--spell', spell.color);
-    if (!refocus) this.page.scrollTop = 0;
+    this.page.scrollTop = 0;
     const title = el('h3', { id: 'grimoire-page-title' }, spell.name);
     if (!known || !g) {
       this.page.replaceChildren(
@@ -259,12 +255,6 @@ export class GrimoireScreen {
       return;
     }
 
-    const select = gestureSelect(this.book, spell, (id) => {
-      const before = this.book.gestureFor(spell.id), other = this.book.spells.find((s) => s !== spell && this.book.gestureFor(s.id)?.id === id);
-      this.note = other && before ? `${other.name} now casts with ${before.glyph} ${before.name}.` : '';
-      this.ui('select');
-      this.book.assign(spell.id, id);
-    });
     this.renderTally();
     this.status.textContent = this.idle();
     this.meter.hidden = !(g.kind === 'pose' || g.kind === 'dual-pose' || g.kind === 'bow');
@@ -287,14 +277,11 @@ export class GrimoireScreen {
         el('h4', { id: 'page-move-title' }, 'The movement'),
         el('p', { class: 'page-gesture' }, `${g.glyph} ${g.name}`, el('span', {}, GESTURE_GROUPS[g.group])),
         el('p', { class: 'page-hint' }, g.hint),
-        el('label', { class: 'page-rebind' }, el('span', {}, 'Cast it with'), select),
-        this.note ? el('p', { class: 'page-note', role: 'status' }, this.note) : '',
         el('div', { class: 'page-stage' },
           el('figure', { class: 'page-diagram' }, el('figcaption', {}, 'How'), createGestureDiagram(g)),
           el('figure', { class: 'page-you' }, el('figcaption', {}, 'Your hands'), this.frame),
           el('div', { class: 'page-practice' }, el('p', { class: 'page-practice-title' }, 'Practise'), this.status, this.tally))),
     );
-    if (refocus) select.focus({ preventScroll: true });
   }
 
   private renderTally(): void {
