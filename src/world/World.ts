@@ -303,6 +303,13 @@ export class World {
       } else if (event.type === 'enemy-death') {
         this.hitStop = Math.max(this.hitStop, event.boss ? 0.35 : 0.06);
         this.releaseSpirit(event.position, event.height);
+      } else if (event.type === 'screech' && event.source === 'widow') {
+        // Her cry is felt as much as heard: the view shudders and blanches at the edges.
+        this.screenFx.edge('#d8434f', 0.18 * event.strength);
+        this.shake(0.35 * event.strength);
+      } else if (event.type === 'egg-break') {
+        this.screenFx.edge('#d8434f', 0.2 + event.anger * 0.3);
+        this.shake(0.2 + event.anger * 0.3);
       } else if (event.type === 'encounter' && event.mode === 'active') {
         this.clearStuckArrows();
       }
@@ -668,6 +675,7 @@ export class World {
       if (column) { foe = column.foe; target.copy(column.point); }
     }
     if ((spell.effect === 'arrow' || spell.effect === 'fire' || spell.effect === 'frost') && foe) this.encounter.bodyPoint(foe, aim, target);
+    if (spell.effect === 'shield') this.placeWard(aim, foe, origin);
     const plan = this.encounter.resolve(spell.effect, aim, foe, target);
     const effectTarget = spell.effect === 'summon' ? origin : target;
     const targetNdc = effectTarget.clone().project(this.camera);
@@ -984,6 +992,25 @@ export class World {
     // No hand (or a numeric demo): always use the present camera, never a stale cursor.
     screenPointAtDepth(this.camera, 0.5, 0.5, 2, this.mid);
     return this.mid;
+  }
+
+  /**
+   * The ward rises between you and the threat: just before the creature the cursor is on, or the
+   * nearest of those clustered along the aim. With nothing there it stays close, at arm's reach.
+   */
+  private placeWard(aim: THREE.Ray, aimed: Foe | null, origin: THREE.Vector3): void {
+    let foe = aimed?.kind === 'egg' ? null : aimed, best = Infinity;
+    if (!foe) {
+      for (const f of this.encounter.targets()) {
+        if (f.kind === 'egg') continue;
+        const to = f.figure.group.position.clone().setY(f.figure.group.position.y + f.spec.height * 0.5).sub(aim.origin);
+        const distance = to.length();
+        if (to.angleTo(aim.direction) < 0.21 && distance < best) { best = distance; foe = f; }
+      }
+    }
+    if (!foe) return;
+    const distance = foe.figure.group.position.clone().setY(aim.origin.y).distanceTo(aim.origin) - foe.spec.radius - 2;
+    origin.copy(aim.origin).addScaledVector(aim.direction, THREE.MathUtils.clamp(distance, 2.5, 13));
   }
 
   private selectSpellTarget(ray: THREE.Ray): { point: THREE.Vector3; foe: Foe | null } {

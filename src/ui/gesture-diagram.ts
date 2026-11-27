@@ -143,6 +143,28 @@ function bow(): SVGElement[] {
   return [string, bolt, aim, pull, arrow([8, 52], [56, 52])];
 }
 
+/** Two hands turned about their palm centres: [shape, where the palm sits, turn in degrees, scale] per hand. */
+const SHAPES: Record<string, { hand: Shape; hands: [Pt, number][]; scale: number; mark: string }> = {
+  // Level palms, fingertips aimed at each other across a crescent.
+  inward: { hand: 'open', hands: [[[-44, 4], 90], [[44, 4], -90]], scale: 0.72, mark: 'M4 -10A11 11 0 1 0 4 18A8 8 0 1 1 4 -10Z' },
+  // Hands lean in until index fingers and thumbs meet around a heart.
+  heart: { hand: 'open', hands: [[[-26, 12], 28], [[26, 12], -28]], scale: 0.74, mark: 'M0 6C-7 -2-16 2-12 10C-9 15-3 18 0 22C3 18 9 15 12 10C16 2 7 -2 0 6Z' },
+  // Open palms crossed into an X, wrists apart.
+  cross: { hand: 'open', hands: [[[-7, 4], 36], [[7, 4], -36]], scale: 0.86, mark: '' },
+  // Horns hung upside down, a scream rising off them.
+  screech: { hand: 'horns', hands: [[[-46, -4], 180], [[46, -4], 180]], scale: 0.8, mark: 'M-14 50Q0 42 14 50M-22 58Q0 46 22 58' },
+};
+
+function twinShape(shape: string): SVGElement[] {
+  const def = SHAPES[shape] ?? SHAPES.inward;
+  const hands = def.hands.map(([[x, y], turn], i) =>
+    node('g', { transform: `translate(${x} ${y}) rotate(${turn}) scale(${def.scale}) translate(0 -5)` }, hand(def.hand, i === 0)));
+  if (!def.mark) return hands;
+  const mark = node('path', { class: 'gd-path', d: def.mark });
+  if (!calm.matches) mark.append(node('animate', { attributeName: 'opacity', values: '.25;.25;1;.25', keyTimes: '0;.35;.7;1', dur: LOOP, repeatCount: 'indefinite' }));
+  return [mark, ...hands];
+}
+
 /** An animated diagram of how to perform a gesture. Decorative: the hint text says it in words. */
 export function createGestureDiagram(g: GestureDef): SVGSVGElement {
   const parts: SVGElement[] =
@@ -150,6 +172,7 @@ export function createGestureDiagram(g: GestureDef): SVGSVGElement {
     : g.kind === 'swipe' ? swipe(g.hand ?? (g.group === 'strike' ? 'fist' : 'open'), g.direction)
     : g.kind === 'circle' ? sigil(g.direction)
     : g.kind === 'dual-pose' ? [ring(34, [-46, 4]), ring(34, [46, 4]), place(hand(g.pose, true), [-46, 6], 0.82), place(hand(g.pose), [46, 6], 0.82)]
+    : g.kind === 'dual-shape' ? twinShape(g.shape)
     : g.kind === 'dual-motion' ? twinMotion(g.motion)
     : bow();
   return node('svg', { class: `gesture-diagram gesture-diagram--${g.kind}`, viewBox: '-100 -72 200 144', 'aria-hidden': 'true', focusable: 'false' }, ...parts);

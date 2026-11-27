@@ -56,6 +56,8 @@ export interface CharacterInput {
   look: THREE.Vector3;
   groundY: number;
   reducedMotion?: boolean;
+  /** 0..1 lasting rage: eyes burn and the design's motion sharpens. */
+  anger?: number;
   /** Extra acting layered on top of the design's motion (cutscenes: waves, bows, reaching). */
   extra?: (a: Anim) => void;
 }
@@ -291,7 +293,7 @@ export class Character {
         rig: this.rig, t: this.t, dt: stepDt, pose: input.pose, progress: input.progress, attack: input.attack ?? '', age: this.poseAge,
         phase: this.phase, move: this.moveAmount, fwd, side, speed, turn: this.turnRate,
         swayF: this.swayF.value, swayS: this.swayS.value, lookYaw, lookPitch,
-        hit: Math.exp(-Math.max(0, hitAge) * 5), life: this.life, seed: this.seed, ground: input.groundY,
+        hit: Math.exp(-Math.max(0, hitAge) * 5), life: this.life, seed: this.seed, ground: input.groundY, anger: input.anger ?? 0,
       };
       d.animate(a);
       input.extra?.(a);
@@ -317,7 +319,7 @@ export class Character {
     u.uDissolve.value = dead ? smooth(0.15, 1, input.progress) : 1 - e;
     u.uFlash.value = Math.exp(-Math.max(0, hitAge) * 9) * (hitAge >= 0 ? 1 : 0);
     u.uFrost.value += ((frozen ? 1 : 0) - u.uFrost.value) * Math.min(1, dt * (frozen ? 8 : 2.5));
-    const fury = input.pose === 'windup' ? smooth(0, 1, input.progress) : input.pose === 'strike' ? 1 : 0;
+    const fury = Math.max(input.pose === 'windup' ? smooth(0, 1, input.progress) : input.pose === 'strike' ? 1 : 0, (input.anger ?? 0) * 0.7);
     u.uEyeColor.value.copy(this.calmEye).lerp(this.angryEye, fury);
     u.uEyes.value = (dead ? 1 - input.progress : 1) * (0.85 + fury * 0.9 + Math.sin(this.t * 2.3 + this.seed * 7) * 0.08);
     if (this.overrides.dissolve !== undefined) u.uDissolve.value = this.overrides.dissolve;

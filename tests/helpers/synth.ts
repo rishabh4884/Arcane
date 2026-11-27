@@ -63,6 +63,15 @@ export function makeHand(cx: number, cy: number, ext: Extended): Vec3[] {
   return local.map((p) => ({ x: cx + (p.x - mx), y: cy - (p.y - my), z: p.z }));
 }
 
+/** Turn a hand about its palm centre, clockwise on screen by `degrees` (90 points an upright hand right). */
+export function rotateHand(lm: readonly Vec3[], degrees: number): Vec3[] {
+  const ids = [0, 5, 9, 13, 17];
+  const cx = ids.reduce((s, i) => s + lm[i].x, 0) / ids.length;
+  const cy = ids.reduce((s, i) => s + lm[i].y, 0) / ids.length;
+  const c = Math.cos(rad(degrees)), n = Math.sin(rad(degrees));
+  return lm.map((p) => ({ x: cx + (p.x - cx) * c - (p.y - cy) * n, y: cy + (p.x - cx) * n + (p.y - cy) * c, z: p.z }));
+}
+
 export const POSES: Record<string, Extended> = {
   fist: {},
   victory: { index: true, middle: true },
@@ -131,6 +140,10 @@ export interface HandSpec {
   x: number;
   y: number;
   ext: Extended;
+  /** Clockwise turn on screen, degrees (see rotateHand). */
+  turn?: number;
+  /** Exact landmarks, overriding x/y/ext/turn. */
+  lm?: Vec3[];
 }
 
 export interface DuoDriver {
@@ -164,7 +177,7 @@ export function makeDuoDriver(
       d.t += dt;
       const frames: HandFrame[] = [];
       const add = (h: HandSpec | null, side: HandSide) => {
-        if (h) frames.push({ time: d.t, landmarks: makeHand(h.x, h.y, h.ext), aspect: ASPECT, confidence: 0.95, side: label(side) });
+        if (h) frames.push({ time: d.t, landmarks: h.lm ?? rotateHand(makeHand(h.x, h.y, h.ext), h.turn ?? 0), aspect: ASPECT, confidence: 0.95, side: label(side) });
       };
       add(left, 'left');
       add(right, 'right');

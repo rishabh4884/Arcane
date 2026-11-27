@@ -25,6 +25,10 @@ export type GameEvent =
   | { type: 'gust'; position: THREE.Vector3; color: string }
   | { type: 'darkness'; seconds: number }
   | { type: 'toll'; position: THREE.Vector3 }
+  /** A scream: the caster's Screech of Pain (strength 1) or the Widow's milder cry. */
+  | { type: 'screech'; position: THREE.Vector3; pan: number; strength: number; source: 'caster' | 'widow' }
+  /** One of the Widow's eggs split open. */
+  | { type: 'egg-break'; position: THREE.Vector3; pan: number; anger: number }
   | { type: 'quake'; position: THREE.Vector3; amount: number }
   /** The whole wood falls still for `duration` seconds. */
   | { type: 'hush'; duration: number };

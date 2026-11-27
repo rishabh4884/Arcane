@@ -124,7 +124,7 @@ export class SpellBook {
     if (bow && saved[bow.id] === 'lance' && this.gestures.some((gesture) => gesture.id === 'bowdraw')) {
       saved[bow.id] = 'bowdraw';
     }
-    for (const [id, old, next] of [['spell-8','wrath','lance'], ['spell-10','slash','fist']]) {
+    for (const [id, old, next] of [['spell-8','wrath','lance'], ['spell-10','slash','fist'], ['spell-14','eclipse','crescent'], ['spell-16','skywake','heart'], ['spell-18','cataclysm','screech'], ['spell-19','bind','cross']]) {
       if (saved[id] === old && this.spells.some(s => s.id === id && s.defaultGesture === next) && !Object.values(saved).includes(next)) saved[id] = next;
     }
     const used = new Set<string>();

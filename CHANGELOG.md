@@ -6,6 +6,21 @@ All notable changes to ARcane are recorded here. The format follows
 
 ## [Unreleased]
 
+### Spells and gestures
+- Stormstrike now strikes ice-blue and leaves frost rime on the ground and a cold light on the trees.
+- Mend is a soft flash at the screen's edge instead of a circle over the fight.
+- Aegis raises its ward in front of the enemy you aim at, nearer or farther, and only charges on a raised palm.
+- Rebuilt Thornsnare and Blackthorn Wake with modelled bramble and thorn growth; Wisp Swarm's fireflies
+  now come out of the trees; Tidecaller is a serpent of water that crashes onto the main enemy.
+- New two-hand shapes: Crescent Palms (Moonveil), Heartwood (Verdant Bloom), Crossed Palms (The Stillness)
+  and Hanging Horns (Screech of Pain). Wyrm's Maw only answers upright horns. Old bindings migrate.
+- Screech of Pain replaces Starfall as the Widow's spell: a scream that throws enemies back. Dawnbreak is gone.
+
+### The Widow
+- The Lantern Widow is now the Widow: a fully remodelled, animated spider with no lanterns, a milder screech
+  of her own, and pale eggs on the ground. Break one (five blows) and she grows angrier.
+- The loom's sky cocoons are gone.
+
 ### Interface
 - Simplified the in-level HUD, spell dock, enemy bars, menus and screen transitions.
 - Added health-driven screen edges and palm markers, spell practice hints and a ready chime.

@@ -257,7 +257,7 @@ export class GrimoireScreen {
 
     this.renderTally();
     this.status.textContent = this.idle();
-    this.meter.hidden = !(g.kind === 'pose' || g.kind === 'dual-pose' || g.kind === 'bow');
+    this.meter.hidden = !(g.kind === 'pose' || g.kind === 'dual-pose' || g.kind === 'dual-shape' || g.kind === 'bow');
     this.meter.style.setProperty('--p', '0');
 
     this.page.replaceChildren(

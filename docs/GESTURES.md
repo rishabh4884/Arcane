@@ -27,7 +27,7 @@ Only six gestures are assigned out of the box. The Spellbook dropdown offers the
 
 **Sigils** (point and draw a circle): Sunwise (clockwise), Moonwise (counter-clockwise), Circle (either way).
 
-**Two-hand signs** (hold): Blood Pact (both fists), Eclipse (both open palms, still), Twin Fangs (two victory signs), Crossfire (two pointing fingers), Wyrm’s Maw (two horns), Leviathan (two tridents).
+**Two-hand signs** (hold): Blood Pact (both fists), Eclipse (both open palms, still), Twin Fangs (two victory signs), Crossfire (two pointing fingers), Wyrm’s Maw (two upright horns), Leviathan (two tridents).
 
 **Two-hand motions**: Bow Draw (point with one hand, pinch and pull back with the other, then release), Rift (pull open hands apart), Bind (draw them together), Skywake (lift both), Cataclysm (slam both down).
 
@@ -101,8 +101,19 @@ Bring both hands fully into frame, leave a clear gap between them, and make the 
 | Eclipse | Show two open, flat palms and keep both hands still. |
 | Twin Fangs | Make a victory sign with both hands. |
 | Crossfire | Point with one index finger on each hand. |
-| Wyrm’s Maw | Make the Horns sign with both hands. |
+| Wyrm’s Maw | Make the Horns sign with both hands, fingertips up. |
 | Leviathan | Make the Trident sign with both hands. |
+
+### Two-hand shapes — the hands work together
+
+These are read from where the hands point and touch, not only from which fingers are out. While both hands make one, every single-hand hold (Aegis included) and every matching two-hand sign stands down, even if the shape itself is not assigned.
+
+| Gesture | How to do it |
+| --- | --- |
+| Crescent Palms | Open both hands and lay them level, fingertips pointing in at each other, and hold. |
+| Heartwood | Make a heart: index fingers curled to touch at the top, thumbs pressed together below, and hold. |
+| Crossed Palms | Cross both open palms into an X in front of you, wrists apart, and hold still. |
+| Hanging Horns | Make horns with both hands and turn them upside down, fingertips at the ground, and hold. |
 
 ### Two-hand motions — begin open and move together
 
@@ -120,7 +131,7 @@ The Spellbook shows each gesture’s short instruction under the spell it is ass
 - **Shapes** need the fingers clearly up or clearly folded. Fold the middle and ring fingers all the way for Horns; tuck ring and little finger in firmly for a Fist.
 - **Sweeps** need to be decisive: roughly two and a half hand-widths in one quick, fairly straight stroke. A lazy drift is ignored on purpose. Start with your hand low in the frame for Rise. A sweep must clearly lead along one direction: a 45° diagonal is ambiguous and casts neither Swish nor Rise.
 - **Sigils**: draw a rounder, slightly larger circle than feels natural, and pause a beat in the pointing pose first.
-- **Open-palm holds** (Aegis, Eclipse) only charge while the palm is still, so sweeping an open hand never charges them on the way. While an open-hand sweep is also assigned (Rise is by default), "still" is stricter and Aegis waits for about a third of a second of stillness before it starts filling, so the pause before a sweep never raises it. After a sweep casts, an open-palm hold cannot start for about a second (or until you change hand shape), so stopping open after a sweep never casts Aegis. Hold the palm still for about a second to cast Aegis on purpose.
+- **Open-palm holds** (Aegis, Eclipse) only charge while the palm is still, so sweeping an open hand never charges them on the way. While an open-hand sweep is also assigned (Rise is by default), "still" is stricter and Aegis waits for about a third of a second of stillness before it starts filling, so the pause before a sweep never raises it. After a sweep casts, an open-palm hold cannot start for about a second (or until you change hand shape), so stopping open after a sweep never casts Aegis. Hold the palm still for about a second to cast Aegis on purpose. Aegis also needs the fingers raised (within 45° of straight up): a level palm, the start of Crescent Palms or Crossed Palms, never charges it.
 - **Sweeps** tolerate your palm turning edge-on mid-stroke (it often reads as three fingers).
 - **Clean signs charge faster.** A crisp, unambiguous hand shape charges up to 20% quicker than a borderline one (unless the same shape also starts an assigned motion, where holds never rush).
 - **Motion blur is tolerated.** A single blurred frame inside a stroke or a circle no longer breaks it.

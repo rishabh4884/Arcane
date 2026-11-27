@@ -1,6 +1,7 @@
 import type { DualMotion } from '../gestures/dual.ts';
 import type { SwipeDirection, SwipeHand } from '../gestures/motion.ts';
 import type { PoseName } from '../gestures/poses.ts';
+import type { ShapeName } from '../gestures/shapes.ts';
 
 /**
  * THE GESTURE LIBRARY
@@ -74,6 +75,13 @@ export interface DualPoseGesture extends GestureBase {
   holdMs?: number;
 }
 
+/** Make one shape with both hands together (they point, cross or touch), and hold it. */
+export interface DualShapeGesture extends GestureBase {
+  kind: 'dual-shape';
+  shape: ShapeName;
+  holdMs?: number;
+}
+
 /** Move both open hands together. */
 export interface DualMotionGesture extends GestureBase {
   kind: 'dual-motion';
@@ -85,10 +93,10 @@ export interface BowGesture extends GestureBase {
   kind: 'bow';
 }
 
-export type GestureDef = PoseGesture | SwipeGesture | CircleGesture | DualPoseGesture | DualMotionGesture | BowGesture;
+export type GestureDef = PoseGesture | SwipeGesture | CircleGesture | DualPoseGesture | DualShapeGesture | DualMotionGesture | BowGesture;
 
-export const isDualGesture = (g: GestureDef): g is DualPoseGesture | DualMotionGesture | BowGesture =>
-  g.kind === 'dual-pose' || g.kind === 'dual-motion' || g.kind === 'bow';
+export const isDualGesture = (g: GestureDef): g is DualPoseGesture | DualShapeGesture | DualMotionGesture | BowGesture =>
+  g.kind === 'dual-pose' || g.kind === 'dual-shape' || g.kind === 'dual-motion' || g.kind === 'bow';
 
 export const GESTURES: readonly GestureDef[] = [
   /* ── Hand signs ── */
@@ -305,6 +313,46 @@ export const GESTURES: readonly GestureDef[] = [
 
   /* ── Two-hand signs ── */
   {
+    id: 'crescent',
+    group: 'twin-sign',
+    kind: 'dual-shape',
+    shape: 'inward',
+    holdMs: 600,
+    name: 'Crescent Palms',
+    hint: 'Open both hands and lay them level, fingertips pointing in at each other, as if cupping the moon. Hold.',
+    glyph: '🌘',
+  },
+  {
+    id: 'heart',
+    group: 'twin-sign',
+    kind: 'dual-shape',
+    shape: 'heart',
+    holdMs: 600,
+    name: 'Heartwood',
+    hint: 'Make a heart: curl both index fingers to touch at the top and press the thumbs together below. Hold.',
+    glyph: '🫶',
+  },
+  {
+    id: 'cross',
+    group: 'twin-sign',
+    kind: 'dual-shape',
+    shape: 'cross',
+    holdMs: 650,
+    name: 'Crossed Palms',
+    hint: 'Cross both open palms in front of you into an X, wrists apart, and hold still.',
+    glyph: '✖️',
+  },
+  {
+    id: 'screech',
+    group: 'twin-sign',
+    kind: 'dual-shape',
+    shape: 'screech',
+    holdMs: 550,
+    name: 'Hanging Horns',
+    hint: 'Make horns with both hands and turn them upside down, fingertips at the ground. Hold.',
+    glyph: '🦇',
+  },
+  {
     id: 'pact',
     group: 'twin-sign',
     kind: 'dual-pose',
@@ -350,7 +398,7 @@ export const GESTURES: readonly GestureDef[] = [
     pose: 'horns',
     holdMs: 450,
     name: 'Wyrm’s Maw',
-    hint: 'Raise horns with both hands and hold, like opening a dragon’s jaws.',
+    hint: 'Raise horns with both hands, fingertips up, and hold, like opening a dragon’s jaws.',
     glyph: '🐉',
   },
   {

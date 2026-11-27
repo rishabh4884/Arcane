@@ -14,8 +14,8 @@ const memory = (seed: Record<string, string> = {}): KeyValueStore & { data: Reco
 };
 
 describe('config integrity', () => {
-  it('ships nineteen spells with a unique, valid default gesture each', () => {
-    expect(SPELLS).toHaveLength(19);
+  it('ships eighteen spells with a unique, valid default gesture each', () => {
+    expect(SPELLS).toHaveLength(18);
     const defaults = SPELLS.map((s) => s.defaultGesture);
     expect(new Set(defaults).size).toBe(SPELLS.length);
     for (const id of defaults) expect(GESTURES.some((g) => g.id === id)).toBe(true);

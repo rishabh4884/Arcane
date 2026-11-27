@@ -34,3 +34,5 @@ function jointAlignment(a: Vec3, b: Vec3, c: Vec3): number {
   if (!Number.isFinite(length) || length < 1e-10) return Number.NaN;
   return ((b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) + (b.z - a.z) * (c.z - b.z)) / length;
 }
+/** Which way the hand points on screen (wrist → middle knuckle) as a unit 2D vector; +y is down. */
+export const handDirection = (p: readonly Vec3[]) => { const x = p[LM.MIDDLE_MCP].x - p[LM.WRIST].x, y = p[LM.MIDDLE_MCP].y - p[LM.WRIST].y, n = Math.hypot(x, y) || 1; return { x: x / n, y: y / n }; };

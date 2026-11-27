@@ -155,6 +155,12 @@ export class AudioEngine {
       case 'boss': if (event.phase > 0) this.roar(event.kind, 0, 1.2); break;
       case 'boss-arrive': this.roar(event.kind, event.pan, 1.6); break;
       case 'toll': this.toll(); break;
+      case 'screech': if (event.source === 'widow') this.widowScreech(event.pan, event.strength); break;
+      case 'egg-break':
+        this.noise({ filter: 'bandpass', freq: 1900, q: 3, decay: 0.07, gain: 0.22, pan: event.pan });
+        this.noise({ filter: 'lowpass', freq: 380, freqEnd: 110, brown: true, attack: 0.02, decay: 0.55, gain: 0.32, pan: event.pan });
+        this.tone({ type: 'triangle', freq: 240, freqEnd: 80, decay: 0.3, gain: 0.07, pan: event.pan });
+        break;
       case 'quake': this.noise({ filter: 'lowpass', freq: 140, brown: true, attack: 0.02, decay: 0.6 + event.amount * 0.4, gain: 0.35 * Math.min(1.4, event.amount) }); break;
       case 'gust': this.noise({ filter: 'bandpass', freq: 500, freqEnd: 1800, q: 0.7, attack: 0.3, decay: 1.6, gain: 0.22, reverb: 0.6 }); break;
       case 'darkness':
@@ -317,18 +323,39 @@ export class AudioEngine {
         for (let i = 0; i < 10; i++) this.noise({ filter: 'lowpass', freq: 260, brown: true, decay: 0.18, gain: 0.3, when: i * 0.17, pan: pan + (i / 10 - 0.5) });
         this.tone({ type: 'sawtooth', freq: 220, freqEnd: 440, attack: 0.1, decay: 1.2, gain: 0.05, filter: { type: 'bandpass', freq: 1200, q: 3 }, reverb: 1 });
         break;
-      case 'starfall':
-        for (let i = 0; i < 8; i++) this.tone({ type: 'sine', freq: 2600 - i * 180, freqEnd: 400, decay: 0.9, gain: 0.04, when: 0.4 + i * 0.18, pan: (Math.random() - 0.5), reverb: 1 });
-        break;
+      case 'screech': this.screechOfPain(pan); break;
       case 'stillness':
         this.toll();
         this.noise({ filter: 'highpass', freq: 6000, attack: 0.1, decay: 3, gain: 0.03, reverb: 1 });
         break;
-      case 'dawn':
-        [261.63, 329.63, 392, 523.25, 659.25, 783.99].forEach((f, i) => this.tone({ type: 'sawtooth', freq: f, attack: 0.15, decay: 2.6, gain: 0.03, when: i * 0.03, filter: { type: 'lowpass', freq: 2400 }, reverb: 1 }));
-        this.noise({ filter: 'bandpass', freq: 1200, freqEnd: 400, q: 0.8, attack: 0.1, decay: 1.8, gain: 0.25 });
-        break;
     }
+  }
+
+  /**
+   * Screech of Pain: a breath drawn in rasping, then a scream that climbs and breaks: detuned saws
+   * through two throat formants, a shrill wavering edge, a rattling grain, and a thump under it all.
+   */
+  private screechOfPain(pan: number): void {
+    this.noise({ filter: 'bandpass', freq: 700, freqEnd: 2600, q: 1.4, attack: 0.18, decay: 0.12, gain: 0.16, pan });
+    for (const [detune, formant] of [[-14, 1150], [0, 2300], [17, 3300]] as const) {
+      this.tone({ type: 'sawtooth', freq: 520, freqEnd: 1480, attack: 0.04, decay: 0.24, gain: 0.07, when: 0.16, detune, filter: { type: 'bandpass', freq: formant, q: 2.2 }, pan, reverb: 0.6, vibrato: { rate: 9, depth: 40 } });
+      this.tone({ type: 'sawtooth', freq: 1480, freqEnd: 610, attack: 0.02, decay: 1.5, gain: 0.08, when: 0.42, detune, filter: { type: 'bandpass', freq: formant, q: 2.2 }, pan, reverb: 1, vibrato: { rate: 11, depth: 70 } });
+    }
+    this.tone({ type: 'square', freq: 2500, freqEnd: 3200, attack: 0.08, decay: 1.1, gain: 0.018, when: 0.3, filter: { type: 'highpass', freq: 2000 }, pan, reverb: 1, vibrato: { rate: 13, depth: 140 } });
+    this.noise({ filter: 'bandpass', freq: 2600, freqEnd: 1300, q: 1.1, attack: 0.05, decay: 1.4, gain: 0.26, when: 0.2, pan, reverb: 1, tremolo: { rate: 31, depth: 0.9 } });
+    this.tone({ type: 'sine', freq: 72, freqEnd: 30, attack: 0.01, decay: 0.95, gain: 0.5, when: 0.18 });
+    this.noise({ filter: 'lowpass', freq: 240, freqEnd: 90, brown: true, attack: 0.02, decay: 1.3, gain: 0.45, when: 0.18, pan });
+  }
+
+  /** The Widow's milder cry: shorter and further off, with the clatter of fangs after it. */
+  private widowScreech(pan: number, strength: number): void {
+    const g = Math.min(1, strength);
+    for (const detune of [-20, 9]) {
+      this.tone({ type: 'sawtooth', freq: 360, freqEnd: 1120, attack: 0.05, decay: 0.2, gain: 0.06 * g, detune, filter: { type: 'bandpass', freq: 1700, q: 2.6 }, pan, reverb: 0.8, vibrato: { rate: 8, depth: 30 } });
+      this.tone({ type: 'sawtooth', freq: 1120, freqEnd: 460, attack: 0.02, decay: 0.95, gain: 0.07 * g, when: 0.24, detune, filter: { type: 'bandpass', freq: 1700, q: 2.6 }, pan, reverb: 1, vibrato: { rate: 10, depth: 55 } });
+    }
+    this.noise({ filter: 'bandpass', freq: 2200, freqEnd: 900, q: 1.3, attack: 0.04, decay: 0.9, gain: 0.16 * g, when: 0.1, pan, reverb: 1, tremolo: { rate: 27, depth: 0.85 } });
+    for (let i = 0; i < 6; i++) this.noise({ filter: 'highpass', freq: 3200, decay: 0.035, gain: 0.09 * g, when: 1.15 + i * 0.07 + Math.random() * 0.03, pan });
   }
 
   /** A wave of creatures is coming: a low horn far off in the wood. */
@@ -557,6 +584,7 @@ export class AudioEngine {
     } else if (kind === 'moth' || kind === 'matron') {
       this.noise({ filter: 'bandpass', freq: 420, q: 1.2, attack: 0.04, decay: 0.45, gain: 0.14, pan, tremolo: { rate: 29, depth: 0.8 } });
     } else if (kind === 'widow') {
+      if (attackId === 'screech') return;
       this.tone({ type: 'triangle', freq: 470, freqEnd: 170, decay: 0.18, gain: 0.04, pan });
       this.noise({ filter: 'highpass', freq: 2600, decay: 0.12, gain: 0.07, pan });
     } else {

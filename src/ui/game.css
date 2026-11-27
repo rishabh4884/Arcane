@@ -50,7 +50,6 @@
 .load-label { margin: 0; min-height: 1.3em; color: var(--mist); font: 0.85rem var(--sans); letter-spacing: 0.04em; }
 .load-enter { width: auto; margin-top: 0.6rem; padding-inline: 2.2rem; text-align: center; animation: rise 0.9s forwards, glowpulse 2.4s 1s ease-in-out infinite; }
 @keyframes glowpulse { 50% { box-shadow: 0 0 40px rgba(255, 217, 160, 0.45); } }
-.load-note { max-width: 42ch; margin: 1.4rem 0 0; color: #8f978a; font-size: 0.78rem; }
 
 /* ── menu ─────────────────────────────────────────────── */
 .g-screen--menu { display: flex; align-items: center; padding: clamp(1rem, 5vw, 5rem); background: linear-gradient(90deg, rgba(6, 8, 7, 0.86) 0%, rgba(6, 8, 7, 0.55) 34%, rgba(6, 8, 7, 0) 64%); }
@@ -63,6 +62,7 @@
 .menu-actions { display: grid; gap: 0.6rem; }
 .menu-status { margin: 1.6rem 0 0; color: #8f978a; font-size: 0.8rem; letter-spacing: 0.03em; }
 .menu-foot { position: absolute; right: clamp(1rem, 4vw, 3rem); bottom: 1.4rem; margin: 0; color: #7b8277; font-size: 0.75rem; letter-spacing: 0.08em; }
+.menu-privacy { position: absolute; left: 50%; bottom: 1.4rem; width: min(42ch, calc(100% - 2rem)); margin: 0; transform: translateX(-50%); color: #6f776b; font-size: 0.7rem; text-align: center; }
 
 /* ── journey ─────────────────────────────────────────────── */
 .g-screen--journey, .g-screen--grimoire { display: flex; flex-direction: column; overflow: auto; background: linear-gradient(180deg, rgba(6, 8, 7, 0.9), rgba(6, 8, 7, 0.78)); backdrop-filter: blur(6px); }

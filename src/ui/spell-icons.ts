@@ -82,16 +82,12 @@ const ICONS: Record<string, readonly Shape[]> = {
     { tag: 'path', className: 'icon-accent', attrs: { d: 'M28 10l-4-6M28 10l6-4M24 16l-6-6M30 12l8-2' } },
   ],
   'spell-18': [
-    { tag: 'path', className: 'icon-main', attrs: { d: 'M30 6l2.5 7 7.5.5-6 4.5 2 7-6-4-6 4 2-7-6-4.5 7.5-.5z', fill: 'currentColor' } },
-    { tag: 'path', className: 'icon-accent', attrs: { d: 'M20 22L8 40M28 28l-8 14M14 18L4 30' } },
+    { tag: 'path', className: 'icon-main', attrs: { d: 'M24 10c-5 0-8 6-8 14s3 14 8 14 8-6 8-14-3-14-8-14zM20 13l2 6 2-5 2 5 2-6M20 35l2-5 2 4 2-4 2 5' } },
+    { tag: 'path', className: 'icon-accent', attrs: { d: 'M10 18c-3 4-3 10 0 14M6 14c-5 6-5 16 0 22M38 18c3 4 3 10 0 14M42 14c5 6 5 16 0 22' } },
   ],
   'spell-19': [
     { tag: 'path', className: 'icon-main', attrs: { d: 'M16 30c0-10 3-18 8-18s8 8 8 18zM12 30h24M22 34a2 2 0 0 0 4 0' } },
     { tag: 'path', className: 'icon-accent', attrs: { d: 'M8 40c5 3 27 3 32 0' } },
-  ],
-  'spell-20': [
-    { tag: 'path', className: 'icon-main', attrs: { d: 'M4 36h40M12 36a12 12 0 0 1 24 0' } },
-    { tag: 'path', className: 'icon-accent', attrs: { d: 'M24 18V6M14 21l-6-8M34 21l6-8M24 44v-4' } },
   ],
 };
 

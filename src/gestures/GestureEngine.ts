@@ -3,7 +3,7 @@ import type { Tuning } from '../config/tuning.ts';
 import type { BowCharge } from './BowRecognizer.ts';
 import { LandmarkSmoother } from '../tracking/LandmarkSmoother.ts';
 import { LM, type HandFrame, type HandSide, type Vec3 } from '../tracking/types.ts';
-import { clamp01, fingerExtensions, handScale, palmCenter, type FingerName } from './features.ts';
+import { clamp01, fingerExtensions, handDirection, handScale, palmCenter, type FingerName } from './features.ts';
 import {
   CIRCLE_DEFAULTS,
   SWIPE_DEFAULTS,
@@ -90,6 +90,8 @@ export const STILL_WINDOW_MS = 220;
 export const STILL_TRAVEL = 0.45;
 /** Tighter stillness for open-palm holds while an open-hand sweep is also live (pausing ≠ warding). */
 const STILL_TRAVEL_SHARED_OPEN = 0.3;
+/** A held open palm only charges with its fingers within 45° of straight up; level palms are Moonveil's. */
+const UPRIGHT_OPEN = Math.cos(Math.PI / 4);
 /** A pointing path that turned this far recently is a sigil in progress, not a straight strike. */
 const CIRCLE_GUARD_MS = 650;
 const CIRCLE_GUARD_TURN = (150 * Math.PI) / 180;
@@ -157,6 +159,7 @@ export class GestureEngine {
   private poseSince = 0;
   /** Last moment the palm or pointing fingertip moved enough to interrupt a hold. */
   private stillSince = 0;
+  private uprightSince = 0;
   /** Pose that already cast and has not been left yet (prevents machine-gun repeats). */
   private latched: PoseName | null = null;
   private lastFireAt = -Infinity;
@@ -237,6 +240,8 @@ export class GestureEngine {
 
     const palm = palmCenter(lm);
     const tip = lm[LM.INDEX_TIP];
+    const upright = -handDirection(lm).y >= UPRIGHT_OPEN;
+    if (!upright) this.uprightSince = now;
     // Palm averaging plus the detector's travel/straightness checks reject jitter without
     // delaying quick flicks behind the visual landmark filter.
     const motionPalm = palmCenter(frame.landmarks);
@@ -286,7 +291,9 @@ export class GestureEngine {
         if (g.pose !== pose || this.latched === pose) continue;
         if (ctx?.suppressPoses?.has(pose) || ctx?.suppressHolds || (ctx?.suppressPointing && pose === 'point')) continue;
         if (this.motionLatch?.pose === pose) continue;
+        if (pose === 'open' && !upright) continue;
         let since = pose === 'open' || hasMatchingMotion ? Math.max(this.poseSince, this.stillSince) : this.poseSince;
+        if (pose === 'open') since = Math.max(since, this.uprightSince);
         if (this.holdFloor?.pose === pose) since = Math.max(since, this.holdFloor.at);
         if (hasMatchingMotion) {
           since += HOLD_COMMIT_MS;

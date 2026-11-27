@@ -161,6 +161,8 @@ export interface Anim {
   seed: number;
   /** Ground height under the figure. */
   ground: number;
+  /** 0..1 lasting rage (the Widow robbed of her brood); 0 for everyone else. */
+  anger?: number;
 }
 
 export const TAU = Math.PI * 2;

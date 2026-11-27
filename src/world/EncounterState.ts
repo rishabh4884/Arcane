@@ -12,14 +12,16 @@ import type { CreaturePose } from './rig/Rig.ts';
 export type CreatureKind =
   | 'goblin' | 'root' | 'hollow' | 'wraith' | 'mossling' | 'thornback' | 'moth'
   | 'gorrik' | 'fenwyrm' | 'stag' | 'herald'
-  | 'matron' | 'grael' | 'widow' | 'king';
+  | 'matron' | 'grael' | 'widow' | 'king'
+  /** The Widow's brood: still, fragile, and hers. */
+  | 'egg';
 
 export type Rank = 'normal' | 'sub' | 'final';
 /** How it moves: closes to bite, keeps its distance, charges, swarms, flies, or commands a fight. */
 export type Role = 'melee' | 'ranged' | 'charger' | 'swarm' | 'flyer' | 'serpent' | 'boss';
 export type AttackType =
   | 'melee' | 'bolt' | 'volley' | 'lob' | 'shockwave' | 'spikes' | 'swarm' | 'summon'
-  | 'charge' | 'dive' | 'gust' | 'toll' | 'darkness' | 'stars' | 'blink';
+  | 'charge' | 'dive' | 'gust' | 'toll' | 'darkness' | 'stars' | 'blink' | 'screech';
 
 export interface AttackSpec {
   id: string;
@@ -125,14 +127,18 @@ export const CREATURE_SPECS: Record<CreatureKind, CreatureSpec> = {
       { id: 'boulder', type: 'lob', range: [6, 40], windup: 2.0, recovery: 2.6, damage: 22, weight: 2, count: 1 },
       { id: 'seedlings', type: 'summon', range: [0, 60], windup: 2.0, recovery: 2.0, damage: 0, weight: 1, cooldown: 26, summon: { kind: 'mossling', count: 5 }, sight: false },
     ] }),
-  widow: spec({ name: 'The Lantern Widow', title: 'She Who Keeps the Lost', rank: 'final', role: 'boss', health: 3100, speed: 1.7, radius: 1.9, height: 4.6,
+  widow: spec({ name: 'The Widow', title: 'She Who Keeps the Brood', rank: 'final', role: 'boss', health: 3100, speed: 1.7, radius: 1.9, height: 4.6,
     attacks: [
-      { id: 'lanterns', type: 'volley', range: [0, 34], windup: 1.7, recovery: 2.2, damage: 6, weight: 3, count: 5, cooldown: 3 },
+      { id: 'venom', type: 'volley', range: [0, 34], windup: 1.7, recovery: 2.2, damage: 6, weight: 3, count: 5, cooldown: 3 },
       { id: 'stab', type: 'melee', range: [0, 5.5], windup: 1.3, recovery: 2.0, damage: 26, weight: 3 },
       { id: 'pounce', type: 'charge', range: [6, 26], windup: 1.4, recovery: 2.2, damage: 22, weight: 2, cooldown: 7 },
       { id: 'step', type: 'blink', range: [0, 60], windup: 0.7, recovery: 0.7, damage: 0, weight: 1, cooldown: 9, sight: false },
       { id: 'lost', type: 'summon', range: [0, 60], windup: 1.8, recovery: 2.0, damage: 0, weight: 1, cooldown: 26, summon: { kind: 'wraith', count: 2 }, sight: false },
+      // A cry with no blow in it, thrown at random: she rears and screams at whoever is near her brood.
+      { id: 'screech', type: 'screech', range: [0, 60], windup: 0.8, recovery: 1.4, damage: 0, weight: 1, cooldown: 11, sight: false },
     ] }),
+  egg: spec({ name: 'Widow’s Egg', rank: 'normal', role: 'melee', health: 5, speed: 0, radius: 0.55, height: 1.15,
+    attacks: [{ id: 'none', type: 'melee', range: [0, 0], windup: 1, recovery: 1, damage: 0 }] }),
   king: spec({ name: 'The Unlit King', title: 'Who Swallowed Every Light', rank: 'final', role: 'boss', health: 5000, speed: 0.5, radius: 2.3, height: 9.2,
     attacks: [
       { id: 'hands', type: 'spikes', range: [0, 50], windup: 1.7, recovery: 2.2, damage: 22, weight: 3 },
@@ -150,13 +156,13 @@ export const CREATURE_NAMES: Record<CreatureKind, string> = Object.fromEntries(
 /** Base damage of each offensive spell. */
 export const SPELL_DAMAGE: Partial<Record<SpellEffect, number>> = {
   arrow: 32, lightning: 48, frost: 12, summon: 9, fire: 22, roots: 14, blade: 30, wisps: 16, flare: 10,
-  quake: 85, tide: 70, stag: 110, starfall: 60, dawn: 220,
+  quake: 85, tide: 70, stag: 110, screech: 55,
 };
 
 export const COOLDOWNS: Record<SpellEffect, number> = {
   arrow: 0.4, lightning: 1.5, frost: 2.2, healing: 7, summon: 12, shield: 6,
   fire: 2.6, roots: 7, blade: 3.2, wisps: 6, flare: 14,
-  quake: 22, veil: 40, tide: 45, bloom: 60, stag: 40, starfall: 55, stillness: 50, dawn: 70,
+  quake: 22, veil: 40, tide: 45, bloom: 60, stag: 40, screech: 50, stillness: 50,
 };
 
 export interface Scaling { health: number; damage: number; speed: number }
@@ -350,7 +356,7 @@ export class PlayerState {
     if (effect === 'veil') this.veil = 7;
     if (effect === 'bloom') { this.health = this.maxHealth; this.regen = 12; }
     // Light breaks the King's darkness.
-    if (effect === 'flare' || effect === 'lightning' || effect === 'dawn' || effect === 'starfall') this.darkness = 0;
+    if (effect === 'flare' || effect === 'lightning') this.darkness = 0;
     return true;
   }
   damage(amount: number): 'hurt' | 'blocked' | 'ignored' {

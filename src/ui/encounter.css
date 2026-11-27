@@ -58,7 +58,7 @@
 .enemy-vital[data-state='dead'] { opacity:.65; }
 .enemy-damage { position:absolute; top:0; left:0; color:#ffe0a3; text-shadow:0 2px 4px #21362e,0 0 7px #4b4132; font:600 1.2rem var(--serif); }
 .enemy-damage[data-effect='frost'] { color:#c6edfa; }
-.enemy-damage[data-effect='lightning'] { color:#e6e8ff; }
+.enemy-damage[data-effect='lightning'] { color:#dff6ff; }
 @media(max-width:700px) {
   .caster-eyebrow { left:1rem; }
   .caster-title { left:1rem; font-size:1.35rem; }

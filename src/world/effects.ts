@@ -503,7 +503,7 @@ function boltMaterial(color: THREE.Color, core: number, glow: number): THREE.Sha
         float x = abs(vUv.y * 2.0 - 1.0);
         float core = (1.0 - smoothstep(0.0, 0.42, x)) * uCore;
         float glow = exp(-x * x * 3.5) * uGlow;
-        vec3 c = mix(uColor * 1.6, vec3(1.25), core);
+        vec3 c = mix(uColor * 1.6, vec3(0.95, 1.12, 1.25), core);
         gl_FragColor = vec4(c, (core + glow * 0.55) * uIntensity);
       }`,
   });
@@ -548,9 +548,11 @@ function lightning(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext)
   // Constant on-screen thickness: width grows with the target's distance from the camera.
   const depth = Math.max(1.5, ctx.depth ?? 10);
   const width = THREE.MathUtils.clamp(depth * 0.0042, 0.018, 0.4);
-  const light = color.clone().lerp(WHITE, 0.25);
+  // Glacial light: a cold white core inside a pale ice-blue sheath. It reads as frost, never violet.
+  const ice = new THREE.Color('#d8f6ff');
+  const light = color.clone().lerp(ice, 0.45);
   const coreMat = boltMaterial(light, 1, 0.6);
-  const haloMat = boltMaterial(color, 0, 0.5);
+  const haloMat = boltMaterial(color.clone().lerp(new THREE.Color('#5fd2f0'), 0.4), 0, 0.5);
   const branchMat = boltMaterial(light, 0.85, 0.5);
   const seed = Math.floor(Math.abs(target.x * 131 + target.z * 71 + target.y * 17)) + 7;
   const start = { x: startLocal.x, y: startLocal.y };
@@ -590,28 +592,31 @@ function lightning(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext)
       void main(){
         float r = length(vP), a = atan(vP.y, vP.x);
         float edge = 0.72 + 0.14 * sin(a * 7.0 + uSeed) + 0.08 * sin(a * 13.0 - uSeed * 1.7);
-        float burn = 1.0 - smoothstep(edge * 0.35, edge, r);
-        float cracks = pow(max(0.0, sin(a * 11.0 + sin(r * 9.0 + uSeed) * 1.4)), 30.0) * (1.0 - smoothstep(0.2, edge, r));
-        vec3 c = mix(vec3(0.02, 0.025, 0.03), uGlow * 1.6, cracks * uHeat + (1.0 - smoothstep(0.0, 0.25, r)) * uHeat * 0.6);
-        gl_FragColor = vec4(c, (burn * 0.62 + cracks * 0.5) * uOpacity);
+        float rime = 1.0 - smoothstep(edge * 0.3, edge, r);
+        float spikes = pow(max(0.0, sin(a * 17.0 + sin(r * 12.0 + uSeed) * 1.2)), 22.0) * (1.0 - smoothstep(0.15, edge * 1.2, r));
+        float glint = pow(max(0.0, sin(a * 41.0 + uSeed * 3.0) * sin(r * 37.0)), 12.0) * rime;
+        vec3 c = mix(vec3(0.58, 0.78, 0.9), vec3(0.93, 0.99, 1.0), clamp(spikes + glint, 0.0, 1.0)) + uGlow * uHeat * (1.0 - smoothstep(0.0, 0.3, r));
+        gl_FragColor = vec4(c, (rime * 0.48 + spikes * 0.45 + glint * 0.3) * uOpacity);
       }`,
   }));
   scorch.rotation.x = -Math.PI / 2;
-  scorch.scale.setScalar(THREE.MathUtils.clamp(width * 30, 0.9, 2.6));
+  scorch.scale.setScalar(THREE.MathUtils.clamp(width * 38, 1.2, 3.2));
   scorch.renderOrder = 2;
   const groundRing = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), (() => { const m = energy(light, 0); m.map = ringTexture(); return m; })());
   groundRing.rotation.x = -Math.PI / 2;
   groundRing.position.y = 0.04;
   ground.add(scorch, groundRing);
 
-  const duration = 1.9;
+  const duration = 2.6;
   const impactAt = 0.15;
   const sparkColor = color.clone().lerp(WHITE, 0.6);
   const strikePoint = target.clone().add(new THREE.Vector3(0, groundDrop * 0.5, 0));
   const onImpact = () => {
     ctx.particles?.burst(target, 60, { speed: 9, color: sparkColor, size: 0.07, ttl: 0.7, gravity: 9, drag: 1.4, style: 'spark' });
     ctx.particles?.burst(target, 24, { speed: 1.4, direction: UP, spread: 0.9, color, size: 0.12, sizeEnd: 0.03, ttl: 1.6, gravity: -0.7, drag: 0.8, style: 'glow' });
-    ctx.mist?.burst(strikePoint, 9, { speed: 1.3, direction: UP, spread: 1.2, color: new THREE.Color('#3a4446'), size: 1.1, sizeEnd: 2.6, alpha: 0.4, ttl: 1.8, drag: 1.2, gravity: -0.25, style: 'mist' });
+    ctx.mist?.burst(strikePoint, 9, { speed: 1.3, direction: UP, spread: 1.2, color: new THREE.Color('#bfe3ee'), size: 1.1, sizeEnd: 2.8, alpha: 0.3, ttl: 1.8, drag: 1.2, gravity: -0.25, style: 'mist' });
+    // Frost motes hang in the air where it struck, glinting as they settle.
+    ctx.particles?.burst(target, 34, { speed: 1.8, direction: UP, spread: 1.4, radius: 0.6, color: ice, size: 0.05, sizeEnd: 0.01, ttl: 2.4, gravity: -0.12, drag: 1.6, style: 'spark' });
     ctx.light?.(target, light, 22, 0.55, 16);
     ctx.screen?.flash(light, 0.32);
     ctx.screen?.shake(0.32);
@@ -621,7 +626,7 @@ function lightning(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext)
   const groundGlow = target.clone().setY(Math.max(target.y, ctx.groundY) + 1.6);
   const boltTop = ctx.lightningStart ? ctx.lightningStart.clone() : target.clone().add(new THREE.Vector3(0, 5.1, 0));
   const boltGlow = target.clone().lerp(boltTop, 0.4);
-  const worldLight = color.clone().lerp(WHITE, 0.55);
+  const worldLight = color.clone().lerp(ice, 0.6);
 
   // Brightness envelope: leader, a dark beat, the return stroke, a re-strike, then the fade.
   const pattern: Array<[number, number, number]> = [[0.15, 0, 1], [0.2, 0, 0.18], [0.3, 1, 1], [0.35, 1, 0.3], [0.44, 2, 1], [0.95, 2, -1]];
@@ -695,45 +700,12 @@ function runeMaterial(color: THREE.Color, seed: number): THREE.ShaderMaterial {
   });
 }
 
-function mend(origin: THREE.Vector3, color: THREE.Color, detail: string | undefined, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  group.position.copy(origin);
-  group.quaternion.copy(ctx.cameraQuaternion);
-  const spin = detail === 'ccw' ? -1 : 1;
-  const sigilMat = runeMaterial(color.clone().lerp(WHITE, 0.15), 3.1);
-  const sigil = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.2), sigilMat);
-  sigil.renderOrder = 6;
-  group.add(sigil);
-  const bloom = glowSprite(color, 2.4, undefined, 0);
-  group.add(bloom);
-  const below = -1.4;
-  const world = new THREE.Vector3();
-  const velocity = new THREE.Vector3();
-  const petal = color.clone().lerp(WHITE, 0.35);
-  const onImpact = () => {
-    ctx.screen?.flash(color, 0.2, 'edge');
-    ctx.light?.(origin, color, 7, 1.1, 10);
-  };
-  return animate(group, 1.8, (t, age, dt) => {
-    const open = easeOutBack(t / 0.28);
-    sigil.scale.setScalar(0.3 + open * 0.75);
-    sigil.rotation.z = spin * age * 0.8;
-    sigilMat.uniforms.uTime.value = age * spin;
-    sigilMat.uniforms.uReveal.value = clamp01(t / 0.3);
-    const fade = t > 0.7 ? clamp01((1 - t) / 0.3) : 1;
-    sigilMat.uniforms.uOpacity.value = fade;
-    bloom.material.opacity = Math.sin(clamp01(t) * Math.PI) * 0.35;
-    // Healing motes rise in a spiral up through the sigil.
-    if (t < 0.85) {
-      for (let k = 0; k < 3; k++) {
-        if (Math.random() > dt * 60) continue;
-        const a = age * 5 * spin + k * 2.1 + Math.random() * 0.4;
-        world.set(Math.cos(a) * 0.95, below + Math.random() * 0.4, Math.sin(a) * 0.25).applyQuaternion(ctx.cameraQuaternion).add(origin);
-        velocity.set(-Math.sin(a) * 0.6 * spin, 1.8 + Math.random(), 0).applyQuaternion(ctx.cameraQuaternion);
-        ctx.particles?.emit({ x: world.x, y: world.y, z: world.z, vx: velocity.x, vy: velocity.y, vz: velocity.z, color: k === 0 ? petal : color, size: 0.09 + Math.random() * 0.06, sizeEnd: 0.02, ttl: 1.1, drag: 0.6, style: 'glow', fadeIn: 0.15 });
-      }
-    }
-  }, 0.55, onImpact);
+function mend(origin: THREE.Vector3, color: THREE.Color, _detail: string | undefined, ctx: SpellContext): SpellAnimation {
+  // Only a flash at the edges of sight and a breath of green light: nothing stands between you and the fight.
+  return animate(new THREE.Group(), 0.5, () => {}, 0.05, () => {
+    ctx.screen?.flash(color, 0.22, 'edge');
+    ctx.light?.(origin, color, 5, 0.45, 9);
+  });
 }
 
 function rise(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
@@ -839,6 +811,9 @@ function aegis(origin: THREE.Vector3, color: THREE.Color, ctx: SpellContext): Sp
   const group = new THREE.Group();
   group.position.copy(origin);
   group.quaternion.copy(ctx.cameraQuaternion);
+  // A ward raised further out is drawn larger, so it still stands between you and what it faces.
+  const reach = ctx.cameraPosition ? Math.max(1, 0.55 + origin.distanceTo(ctx.cameraPosition) * 0.22) : 1;
+  group.scale.setScalar(reach);
   const gold = new THREE.Color('#ffd98a');
   const ward = color.clone().lerp(gold, 0.45);
   const pale = color.clone().lerp(WHITE, 0.5);
@@ -917,7 +892,7 @@ function aegis(origin: THREE.Vector3, color: THREE.Color, ctx: SpellContext): Sp
     // Motes of warding light drift up from the circle's rim.
     if (t < 0.85 && Math.random() < dt * 35) {
       const a = Math.random() * Math.PI * 2;
-      mote.set(Math.cos(a) * 1.4, Math.sin(a) * 1.4, 0).applyQuaternion(ctx.cameraQuaternion).add(origin);
+      mote.set(Math.cos(a) * 1.4 * reach, Math.sin(a) * 1.4 * reach, 0).applyQuaternion(ctx.cameraQuaternion).add(origin);
       ctx.particles?.emit({ x: mote.x, y: mote.y, z: mote.z, vx: 0, vy: 0.6 + Math.random() * 0.6, vz: 0, color: Math.random() < 0.5 ? gold : pale, size: 0.07, sizeEnd: 0.01, ttl: 1, drag: 0.5, style: 'glow', fadeIn: 0.15 });
     }
   }, 0.2, onImpact);

@@ -13,7 +13,8 @@ describe('spell visuals', () => {
       new THREE.Color('#8adfff'),
       'left',
     );
-    expect(animation.group.children.length).toBeGreaterThan(0);
+    // Mend is only a flash at the screen's edge and a breath of light, so it never covers the fight.
+    if (effect !== 'healing') expect(animation.group.children.length).toBeGreaterThan(0);
     const impact = vi.fn();
     animation.setImpactCallback(impact);
     expect(animation.update(0.08)).toBe(true);

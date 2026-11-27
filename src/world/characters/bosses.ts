@@ -702,15 +702,15 @@ export const GRAEL: Design = {
   },
 };
 
-/* ═════════════════════════════════ THE LANTERN WIDOW ═════════════════════════════════ */
+/* ═════════════════════════════════ THE WIDOW ═════════════════════════════════ */
 
 const LEGS = [1, 2, 3, 4];
 const CHITIN = '#211c26', CHITIN_LIGHT = '#4a4058';
 
-export const LANTERN_WIDOW: Design = {
-  kind: 'widow', name: 'The Lantern Widow', height: 4.6, radius: 1.9, turnRate: 2.6, stride: 2.2, pace: 1.7,
-  eye: '#ffcf7a', eyeAngry: '#ff6a3a', edge: '#ffcf8a', mist: 0.5,
-  stiffness: { lan1L: 3.5, lan1R: 3.5, lan2L: 3, lan2R: 3, abd: 7, head: 9 },
+export const WIDOW: Design = {
+  kind: 'widow', name: 'The Widow', height: 4.6, radius: 1.9, turnRate: 2.6, stride: 2.2, pace: 1.7,
+  eye: '#ff5a4a', eyeAngry: '#ff1f2e', edge: '#e2b9a4', mist: 0.5,
+  stiffness: { fangL: 22, fangR: 22, palpL: 12, palpR: 12, abd: 7, head: 9 },
   castBone: 'handL', coreBone: 'spine',
   build(b: Body) {
     b.bone('hips', 'root', [0, 1.9, -0.3])
@@ -723,19 +723,35 @@ export const LANTERN_WIDOW: Design = {
       .pairBone('shoulderL', 'chest', [0.35, 3.25, 0.45])
       .pairBone('elbowL', 'shoulderL', [0.62, 2.78, 0.75])
       .pairBone('handL', 'elbowL', [0.68, 2.35, 0.98], [0.7, 2.2, 1.05])
-      .pairBone('lan1L', 'abd', [0.42, 1.55, -1.1], [0.42, 1.0, -1.1])
-      .pairBone('lan2L', 'abd', [0.3, 1.5, -1.8], [0.3, 0.95, -1.8]);
+      .pairBone('fangL', 'head', [0.08, 3.72, 0.72], [0.06, 3.55, 0.88])
+      .pairBone('palpL', 'chest', [0.16, 3.0, 0.75], [0.3, 2.55, 1.15])
+      .bone('spin', 'abd', [0, 1.7, -2.35], [0, 1.55, -2.5]);
     for (const k of LEGS) {
       const z = 0.55 - k * 0.38, spread = 1.15 + (k === 1 || k === 4 ? 0.35 : 0);
       b.pairBone(`leg${k}L`, 'hips', [0.35, 1.95, z])
         .pairBone(`knee${k}L`, `leg${k}L`, [0.35 + spread, 3.0, z + (k - 2.5) * 0.25])
         .pairBone(`foot${k}L`, `knee${k}L`, [0.35 + spread * 1.9, 0.05, z + (k - 2.5) * 0.65], [0.35 + spread * 2.0, -0.05, z + (k - 2.5) * 0.7]);
     }
-    // A great abdomen draped like a mourning gown, marked with dim lantern shapes.
-    b.part(ellipsoid([0, 2.05, -1.35], [0.85, 0.75, 1.1], { deform: (d, p) => { if (d.y < -0.3) p.y *= 0.8; p.multiplyScalar(1 + Math.sin(d.x * 7 + d.z * 5) * 0.03); } }),
-      { color: '#2c2533', shade: '#0e0b12', surface: 'cloth', bones: ['abd', 'hips'] });
-    for (const [x, z] of [[0, -0.9], [0.28, -1.4], [-0.28, -1.4], [0, -1.95]] as const) {
-      b.part(ellipsoid([x, 2.75 - Math.abs(z + 1.35) * 0.25, z], [0.11, 0.03, 0.16]), { color: '#ffcf7a', surface: 'glow', glow: 0.45, bones: ['abd'] });
+    // A swollen, bristled abdomen, the mourning gown long since grown into her. A blood hourglass
+    // shows beneath, and spinnerets trail silk at the back.
+    b.part(ellipsoid([0, 2.05, -1.35], [0.88, 0.8, 1.15], { deform: (d, p) => {
+      if (d.y < -0.3) p.y *= 0.82;
+      p.multiplyScalar(1 + Math.sin(d.x * 7 + d.z * 5) * 0.03 + fbm3(d.x * 4, d.y * 4, d.z * 4, 3) * 0.06);
+    } }), { color: '#241d2a', shade: '#09070c', surface: 'fur', bones: ['abd', 'hips'] });
+    for (const [x, z, r] of [[0, -0.75, 0.2], [0, -1.25, 0.16], [0, -1.7, 0.12]] as const) {
+      b.part(ellipsoid([x, 2.83 - Math.abs(z + 1.35) * 0.3, z], [r, 0.035, r * 1.3]), { color: '#3b2f40', shade: CHITIN, surface: 'chitin', bones: ['abd'] });
+    }
+    for (const sign of [1, -1]) {
+      b.part(tube([[0, 1.3, -1.25], [0.13 * sign, 1.28, -1.45], [0.03 * sign, 1.27, -1.6], [0, 1.27, -1.62]], [0.02, 0.07, 0.05, 0.02], { flatten: { axis: [0, 1, 0], amount: 0.85 } }),
+        { color: '#c21f34', shade: '#5a0d18', surface: 'glow', glow: 0.35, bones: ['abd'] });
+    }
+    for (const x of [-0.07, 0.07]) b.part(tube([[x, 1.8, -2.32], [x * 1.4, 1.62, -2.45], [x * 1.6, 1.5, -2.5]], [0.06, 0.045, 0.015], { radial: 7 }), { color: CHITIN_LIGHT, shade: CHITIN, surface: 'chitin', bones: ['spin'] });
+    for (let k = 0; k < 46; k++) {
+      const u = (k * 0.618) % 1, v = (k * 0.371 + 0.13) % 1, ang = u * TAU, el = (v - 0.35) * 2.2;
+      const nx = Math.cos(ang) * Math.cos(el), ny = Math.sin(el), nz = Math.sin(ang) * Math.cos(el);
+      if (ny < -0.45) continue;
+      const base: V3 = [nx * 0.84, 2.05 + ny * 0.76, -1.35 + nz * 1.1];
+      b.part(tube([base, [base[0] + nx * 0.14, base[1] + ny * 0.14 + 0.03, base[2] + nz * 0.14 - 0.05]], [0.012, 0.002], { radial: 3, segments: 3 }), { color: '#4e4352', surface: 'hair', bones: ['abd'] });
     }
     b.part(ellipsoid([0, 1.95, 0.05], [0.55, 0.42, 0.6]), { color: CHITIN, shade: '#0d0b10', surface: 'chitin', bones: ['hips', 'spine'] });
     // A wraith's upper body, hooded and veiled, rising from the front.
@@ -751,8 +767,16 @@ export const LANTERN_WIDOW: Design = {
     b.part(ellipsoid([0, 3.85, 0.5], [0.22, 0.27, 0.24], { deform: (d, p) => { if (d.y > 0.4) { p.z -= (d.y - 0.4) * 0.25; p.y += (d.y - 0.4) * 0.2; } } }),
       { color: '#3e3647', shade: '#1b1620', surface: 'cloth', bones: ['head'] });
     b.part(ellipsoid([0, 3.82, 0.66], [0.15, 0.19, 0.1]), { color: '#e6e0d4', shade: '#8f887b', surface: 'bone', bones: ['head'] });
-    b.part(tube([[0.02, 3.95, 0.76], [-0.03, 3.8, 0.765], [0.01, 3.66, 0.75]], [0.004], { radial: 4 }), { color: '#ffcf7a', surface: 'glow', glow: 0.8, bones: ['head'] });
-    for (const s of [1, -1]) b.part(ellipsoid([0.06 * s, 3.86, 0.755], [0.022, 0.014, 0.008]), { color: '#ffffff', surface: 'glow', glow: 1, bones: ['eyes'] });
+    // Eight eyes break through the cracked mask: two great ones, six small, all wet and red.
+    for (const [x, y, z, r] of [[0.045, 3.9, 0.755, 0.026], [0.098, 3.86, 0.738, 0.017], [0.128, 3.8, 0.712, 0.012], [0.06, 3.81, 0.755, 0.014]] as const) {
+      b.pair(ellipsoid([x, y, z], [r, r * 0.85, r * 0.7]), { color: '#ffffff', surface: 'glow', glow: 1, bones: ['eyes'] });
+    }
+    b.part(tube([[0.0, 3.98, 0.755], [0.02, 3.88, 0.765], [-0.015, 3.76, 0.76], [0.01, 3.68, 0.74]], [0.006, 0.008, 0.005, 0.002], { radial: 4 }), { color: '#1a1216', surface: 'dark', bones: ['head'] });
+    // Chelicerae under the mask, and two curved fangs that chatter.
+    b.pair(ellipsoid([0.07, 3.69, 0.71], [0.065, 0.09, 0.07]), { color: CHITIN_LIGHT, shade: CHITIN, surface: 'chitin', bones: ['fangL'] });
+    b.pair(tube([[0.075, 3.63, 0.74], [0.09, 3.53, 0.82], [0.055, 3.45, 0.88]], [0.035, 0.022, 0.002], { radial: 7 }), { color: '#d9c7b2', shade: '#5f4a45', surface: 'bone', bones: ['fangL'] });
+    // Pedipalps: short feelers that taste the air before she strikes.
+    b.pair(tube([[0.16, 3.0, 0.75], [0.28, 2.95, 0.98], [0.3, 2.7, 1.12], [0.29, 2.55, 1.16]], [0.045, 0.04, 0.032, 0.012], { radial: 7 }), { color: CHITIN, shade: CHITIN_LIGHT, surface: 'chitin', bones: ['palpL'] });
     // Split veil framing the mask, falling in two long folds onto the collar.
     b.pair(tube([[0.04,4.09,0.54],[0.19,3.98,0.62],[0.21,3.76,0.65],[0.26,3.53,0.56],[0.34,3.36,0.53]], [0.075,0.11,0.09,0.08,0.016], {radial:12,flatten:{axis:[0,0,1],amount:0.45}}),
       {color:'#796774',shade:'#3e3343',surface:'fabric',bones:['head','neck'],relief:0});
@@ -760,29 +784,33 @@ export const LANTERN_WIDOW: Design = {
       {color:'#ac9c8c',shade:'#766a65',surface:'bone',bones:['handL']});
     b.pair(tube([[0.32, 3.28, 0.45], [0.62, 2.78, 0.75], [0.68, 2.38, 0.98]], [0.08, 0.07, 0.09], { radial: 9, capEnd: false }), { color: '#3a3342', shade: '#16121b', surface: 'cloth', bones: ['shoulderL', 'elbowL', 'handL', 'chest'] });
     for (const dx of [-0.025, 0, 0.025]) b.pair(tube([[0.68 + dx, 2.32, 1.0], [0.69 + dx * 1.4, 2.18, 1.06], [0.7 + dx * 1.6, 2.06, 1.1]], [0.012, 0.009, 0.002], { radial: 4 }), { color: '#cfc8ba', surface: 'bone', bones: ['handL'] });
-    // Eight long legs, knees high above the body, each with a little lantern at the knee.
+    // Eight legs in plated segments: a swollen femur, a knuckled knee, a thin tibia and tarsus
+    // ending in a hooked claw. Bristles rake backwards along each one.
     for (const k of LEGS) {
       const z = 0.55 - k * 0.38, spread = 1.15 + (k === 1 || k === 4 ? 0.35 : 0);
-      const knee: V3 = [0.35 + spread, 3.0, z + (k - 2.5) * 0.25], foot: V3 = [0.35 + spread * 1.9, 0.05, z + (k - 2.5) * 0.65];
-      b.pair(tube([[0.35, 1.95, z], knee, foot], [0.09, 0.06, 0.012], { radial: 8, segments: 24 }), { color: CHITIN, shade: CHITIN_LIGHT, surface: 'chitin', bones: [`leg${k}L`, `knee${k}L`, `foot${k}L`], falloff: 6 });
-      b.pair(ellipsoid([knee[0], knee[1] + 0.02, knee[2]], [0.09, 0.08, 0.09]), { color: CHITIN_LIGHT, surface: 'chitin', bones: [`knee${k}L`] });
-      b.pair(ellipsoid([knee[0], knee[1] - 0.12, knee[2]], [0.045, 0.06, 0.045]), { color: '#ffb257', surface: 'glow', glow: 0.8, bones: [`knee${k}L`] });
-    }
-    // Lanterns hanging from the gown on chains.
-    for (const [bone, x, z] of [['lan1L', 0.42, -1.1], ['lan2L', 0.3, -1.8]] as const) {
-      b.pair(tube([[x, 1.55, z], [x, 1.15, z]], [0.008], { radial: 4 }), { color: '#3a3128', surface: 'metal', bones: [bone] });
-      // Pierced bronze cage. Four bowed stays leave the captive flame visible between them.
-      for (const y of [1.13,0.85]) b.pair(lathe([[0.035,y+0.045],[0.105,y],[0.07,y-0.025]], {center:[x,0,z],segments:12,closeTop:true,closeBottom:true}), {color:'#93774d',shade:'#47382f',surface:'metal',bones:[bone]});
-      for (let i=0;i<4;i++) {
-        const angle=i*Math.PI/2, dx=Math.cos(angle), dz=Math.sin(angle);
-        b.pair(tube([[x+dx*0.075,1.13,z+dz*0.075],[x+dx*0.12,0.99,z+dz*0.12],[x+dx*0.075,0.85,z+dz*0.075]],[0.012,0.014,0.012],{radial:5}),{color:'#69533c',surface:'metal',bones:[bone]});
+      const hip: V3 = [0.35, 1.95, z], knee: V3 = [0.35 + spread, 3.0, z + (k - 2.5) * 0.25], foot: V3 = [0.35 + spread * 1.9, 0.05, z + (k - 2.5) * 0.65];
+      const at = (from: V3, to: V3, t: number): V3 => [from[0] + (to[0] - from[0]) * t, from[1] + (to[1] - from[1]) * t, from[2] + (to[2] - from[2]) * t];
+      const ankle = at(knee, foot, 0.72);
+      b.pair(tube([hip, at(hip, knee, 0.3), at(hip, knee, 0.75), knee], [0.1, 0.13, 0.1, 0.07], { radial: 9, segments: 18 }),
+        { color: CHITIN, shade: CHITIN_LIGHT, surface: 'chitin', bones: [`leg${k}L`, `knee${k}L`], falloff: 6 });
+      b.pair(tube([knee, at(knee, foot, 0.35), ankle], [0.07, 0.06, 0.04], { radial: 8, segments: 16 }),
+        { color: CHITIN, shade: CHITIN_LIGHT, surface: 'chitin', bones: [`knee${k}L`, `foot${k}L`], falloff: 6 });
+      b.pair(tube([ankle, at(ankle, foot, 0.6), foot, [foot[0] + 0.06, 0.0, foot[2] + 0.08]], [0.038, 0.028, 0.014, 0.002], { radial: 6 }),
+        { color: '#16121b', shade: CHITIN_LIGHT, surface: 'chitin', bones: [`foot${k}L`] });
+      b.pair(ellipsoid([knee[0], knee[1] + 0.02, knee[2]], [0.11, 0.1, 0.1]), { color: CHITIN_LIGHT, shade: CHITIN, surface: 'chitin', bones: [`knee${k}L`] });
+      b.pair(ellipsoid(ankle, [0.055, 0.06, 0.055]), { color: CHITIN_LIGHT, surface: 'chitin', bones: [`foot${k}L`] });
+      for (const [from, to, bone] of [[hip, knee, `leg${k}L`], [knee, ankle, `knee${k}L`]] as const) {
+        for (const t of [0.22, 0.4, 0.58, 0.76]) {
+          const [x, y, zz] = at(from, to, t);
+          b.pair(tube([[x, y + 0.04, zz], [x + 0.05, y + 0.16, zz - 0.07]], [0.012, 0.001], { radial: 3, segments: 3 }), { color: '#5a4e5e', surface: 'hair', bones: [bone] });
+        }
       }
-      b.pair(ellipsoid([x, 0.99, z], [0.075, 0.1, 0.075]), { color: '#ffc36a', surface: 'glow', glow: 0.9, bones: [bone] });
     }
   },
   animate(a: Anim) {
     const r = a.rig;
     // A spider's gait: two alternating sets of four legs; it skitters sideways as easily as forward.
+    const rage = a.anger ?? 0;
     const w = a.move * a.life, ph = a.phase * TAU;
     for (const k of LEGS) {
       for (const s of ['L', 'R'] as const) {
@@ -791,26 +819,44 @@ export const LANTERN_WIDOW: Design = {
         const lift = Math.max(0, Math.cos(phi)), swing = Math.sin(phi);
         r.rot(`leg${k}${s}`, -swing * 0.3 * a.fwd * w, swing * 0.35 * (s === 'L' ? 1 : -1) * a.fwd * w, (s === 'L' ? 1 : -1) * (lift * 0.25 * w + swing * 0.25 * a.side * (s === 'L' ? 1 : -1) * w));
         r.rot(`knee${k}${s}`, 0, 0, (s === 'L' ? -1 : 1) * lift * 0.2 * w);
+        // At rest the legs never quite settle: a tap, a twitch, quicker the angrier she is.
+        const twitch = Math.pow(Math.max(0, Math.sin(a.t * (1.3 + rage * 3) + k * 2.3 + (s === 'L' ? 0 : 1.7) + a.seed * 9)), 14) * (1 - w);
+        r.rot(`knee${k}${s}`, -twitch * (0.18 + rage * 0.22), 0, (s === 'L' ? -1 : 1) * twitch * 0.15).rot(`foot${k}${s}`, twitch * 0.3);
       }
     }
     r.pos('hips', 0, Math.sin(ph * 2) * 0.05 * w + Math.sin(a.t * 0.8) * 0.04, 0).rot('hips', 0, 0, -0.08 * a.side * w);
     r.rot('abd', Math.sin(a.t * 0.7) * 0.05 - a.swayF * 0.3, 0, a.swayS * 0.3);
-    r.rotPair('lan1', -a.swayF * 1.4 + Math.sin(a.t * 1.6) * 0.08, 0, a.swayS * 1.4 + Math.sin(a.t * 1.2) * 0.06).rotPair('lan2', -a.swayF * 1.5 + Math.sin(a.t * 1.6 - 1) * 0.08, 0, a.swayS * 1.5);
+    // The abdomen breathes; the fangs work; the palps taste the air.
+    const pulse = Math.sin(a.t * (1.6 + rage * 2.4));
+    r.scl('abd', pulse * (0.02 + rage * 0.02), pulse * (0.025 + rage * 0.02), pulse * 0.015).rot('spin', Math.sin(a.t * 1.1) * 0.12);
+    const chatter = Math.max(0, Math.sin(a.t * (7 + rage * 12))) * (0.08 + rage * 0.16) * (0.4 + 0.6 * Math.max(0, Math.sin(a.t * 0.9 + a.seed)));
+    r.rotPair('fang', -chatter, 0, chatter * 0.8);
+    r.rotPair('palp', Math.sin(a.t * 2.1 + a.seed) * 0.12, 0, Math.sin(a.t * 1.7) * 0.08 + 0.05);
     idleLife(a, 0.6);
     lookAt(a, 1, 0.8);
     blink(a, 99);
     r.rot('head', 0, 0, Math.sin(a.t * 0.45 + a.seed * 3) * 0.22 * a.life);
     r.rotPair('shoulder', -0.25, 0, 0.1).rotPair('elbow', -0.5);
     const p = a.progress, c = smooth(0, 0.7, p), hit = smooth(0, 0.3, p);
-    if (a.pose === 'windup') {
+    if (a.attack === 'screech' && (a.pose === 'windup' || a.pose === 'strike' || a.pose === 'recover')) {
+      // The screech: she rears, throws her head back, splays her front legs and opens her fangs wide.
+      const flare = (a.pose === 'windup' ? c : a.pose === 'recover' ? 1 - smooth(0, 0.8, p) : 1) * (1 + 0.25 * rage);
+      const shake = a.pose === 'strike' ? Math.sin(a.t * 60) * 0.05 : 0;
+      r.pos('hips', 0, 0.35 * flare, -0.2 * flare).rot('hips', -0.25 * flare).rot('spine', -0.3 * flare).rot('head', -0.55 * flare + shake, shake);
+      r.rotPair('leg1', -0.7 * flare, -0.2 * flare, 0.75 * flare).rotPair('leg2', -0.3 * flare, 0, 0.35 * flare);
+      r.rotPair('fang', -0.45 * flare, 0, 0.6 * flare).rotPair('shoulder', -1.2 * flare, 0, 1.1 * flare).rotPair('palp', -0.5 * flare, 0, 0.4 * flare);
+    } else if (a.pose === 'windup') {
+      // Every wind-up begins with a threat display: she rises on her back legs.
+      const rear = c * (0.6 + rage * 0.4);
+      r.pos('hips', 0, 0.25 * rear, -0.1 * rear).rot('hips', -0.18 * rear).rotPair('leg1', -0.35 * rear, 0, 0.3 * rear).rotPair('fang', -0.3 * rear, 0, 0.35 * rear);
       if (a.attack === 'stab') r.rot('leg1L', -0.6 * c, 0, 0.6 * c).rot('leg1R', -0.6 * c, 0, -0.6 * c).rot('spine', -0.25 * c);
       else if (a.attack === 'pounce') r.pos('hips', 0, -0.5 * c, -0.2 * c).rot('spine', 0.2 * c);
-      else if (a.attack === 'lanterns') r.rotPair('shoulder', -1.6 * c, 0, 0.5 * c).rotPair('elbow', -0.4 * c).rot('spine', -0.2 * c);
+      else if (a.attack === 'venom') r.rot('abd', 0.5 * c).rotPair('fang', -0.4 * c, 0, 0.5 * c).rot('head', -0.25 * c).rot('spine', -0.15 * c);
       else r.rotPair('shoulder', -0.9 * c, 0, 1.3 * c).rot('head', -0.35 * c);
     } else if (a.pose === 'strike') {
       if (a.attack === 'stab') r.rot('leg1L', -0.6 + 1.0 * hit, 0, 0.6 - 0.9 * hit).rot('leg1R', -0.6 + 1.0 * hit, 0, -0.6 + 0.9 * hit).rot('spine', -0.25 + 0.5 * hit);
       else if (a.attack === 'pounce') r.pos('hips', 0, -0.5 + bump(0, 0.7, p) * 1.6, 0.4 * hit);
-      else if (a.attack === 'lanterns') r.rotPair('shoulder', -1.6 + 0.6 * hit, 0, 0.5).rotPair('elbow', -0.4 + 0.4 * hit);
+      else if (a.attack === 'venom') r.rot('abd', 0.5 - 0.7 * hit).rotPair('fang', -0.4 + 0.3 * hit, 0, 0.5).rot('head', -0.25 + 0.4 * hit).rot('spine', -0.15 + 0.3 * hit);
     }
   },
 };
@@ -1091,4 +1137,27 @@ function kingAnimate(a: Anim): void {
     }
 }
 
-export const BOSS_DESIGNS = { gorrik: GORRIK, fenwyrm: FENWYRM, stag: HOLLOW_STAG, herald: PALE_HERALD, matron: MOTH_MATRON, grael: GRAEL, widow: LANTERN_WIDOW, king: UNLIT_KING } as const;
+export const EGG: Design = {
+  kind: 'egg', name: 'Widow’s Egg', height: 1.15, radius: 0.55, turnRate: 0, stride: 1, pace: 1,
+  eye: '#d8c6aa', eyeAngry: '#d8c6aa', edge: '#b89779', coreBone: 'shell',
+  build(b) {
+    b.bone('shell', 'root', [0, 0.08, 0]);
+    b.part(ellipsoid([0, 0.55, 0], [0.42, 0.55, 0.39], { deform: (d, p) => {
+      p.x *= 1 - 0.2 * d.y;
+      p.z *= 1 - 0.2 * d.y;
+    } }), { color: '#dfd0b1', shade: '#8f7167', surface: 'bone', bones: ['shell'] });
+    for (let k = 0; k < 6; k++) {
+      const strand: V3[] = Array.from({ length: 25 }, (_, i) => {
+        const a = i / 24 * TAU, y = (k - 2.5) * 0.15 + 0.07 * Math.sin(2 * a + k);
+        const r = Math.sqrt(1 - y * y) * (1 - 0.2 * y);
+        return [0.423 * r * Math.cos(a), 0.55 + 0.55 * y, 0.394 * r * Math.sin(a)];
+      });
+      b.part(tube(strand, [0.009], { radial: 4, segments: 32 }), { color: k % 2 ? '#eee6cc' : '#98776c', surface: 'thread', bones: ['shell'] });
+    }
+  },
+  animate(a) {
+    a.rig.scl('shell', Math.sin(a.t * 2 + a.seed * 5) * 0.014).rot('shell', 0, 0, Math.sin(a.t * 38) * a.hit * 0.12);
+  },
+};
+
+export const BOSS_DESIGNS = { gorrik: GORRIK, fenwyrm: FENWYRM, stag: HOLLOW_STAG, herald: PALE_HERALD, matron: MOTH_MATRON, grael: GRAEL, widow: WIDOW, egg: EGG, king: UNLIT_KING } as const;

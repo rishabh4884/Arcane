@@ -5,13 +5,18 @@ import { animate, facingPlane, type SpellAnimation, type SpellContext } from './
 import { tube } from './rig/Body.ts';
 import { Character } from './rig/Character.ts';
 import { terrainHeight } from './spatial.ts';
+import { blackthornWake } from './fx/blackthorn.ts';
 import { emberLash as stagedEmberLash } from './fx/emberLash.ts';
+import { screech } from './fx/screech.ts';
+import { thornsnare } from './fx/thornsnare.ts';
+import { tidecaller } from './fx/tidecaller.ts';
+import { wispSwarm } from './fx/wisps.ts';
 import { Trail, WHITE, clamp01, easeOutBack, easeOutCubic, flareTexture, glowSprite, ringTexture } from './vfx.ts';
 
 /**
  * THE NEWER SPELLS
  * ────────────────
- * Ember Lash, Thornsnare, Blackthorn Wake, Wisp Swarm and Sunflare, and the eight legendary spells taken
+ * Ember Lash, Thornsnare, Blackthorn Wake, Wisp Swarm and Sunflare, and the legendary spells taken
  * from the bosses. Multi-target spells receive the points and delays the Encounter resolved, so
  * each visible impact lands on the beat the damage does.
  */
@@ -19,82 +24,13 @@ import { Trail, WHITE, clamp01, easeOutBack, easeOutCubic, flareTexture, glowSpr
 const UP = new THREE.Vector3(0, 1, 0);
 const tmp = new THREE.Vector3();
 
-function below(ctx: SpellContext, depth: number, side: number): THREE.Vector3 {
-  const cam = ctx.cameraPosition ?? new THREE.Vector3(0, 1.8, 10);
-  const q = ctx.cameraQuaternion;
-  const half = Math.tan(THREE.MathUtils.degToRad((ctx.fov ?? 64) / 2)) * depth;
-  return cam.clone().add(new THREE.Vector3(side * half * 0.4, -half * 1.05, -depth).applyQuaternion(q));
-}
-
 function impactBurst(ctx: SpellContext, at: THREE.Vector3, color: THREE.Color, force = 1): void {
   ctx.particles?.burst(at, Math.round(20 * force), { speed: 3.5 * force, color: color.clone().lerp(WHITE, 0.4), size: 0.06, ttl: 0.6, gravity: 5, drag: 1.2, style: 'spark' });
   ctx.particles?.burst(at, Math.round(12 * force), { speed: 1.6 * force, color, size: 0.2 * force, sizeEnd: 0.02, ttl: 0.6, drag: 2.2, style: 'glow' });
   ctx.light?.(at, color, 7 * force, 0.4, 8);
 }
 
-/* Ember Lash lives in fx/emberLash.ts, staged in five beats. */
-
-/* ─────────────────────────────── THORNSNARE ─────────────────────────────── */
-
-function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  const at = (ctx.targets?.[0] ?? target).clone();
-  at.y = terrainHeight(at.x, at.z);
-  const bark = new THREE.MeshStandardMaterial({ color: '#4a3826', roughness: 0.85, emissive: color.clone().multiplyScalar(0.05) });
-  const thorn = new THREE.MeshStandardMaterial({ color: '#2d2117', roughness: 0.7 });
-  const roots: THREE.Mesh[] = [];
-  for (let i = 0; i < 7; i++) {
-    const a0 = (i / 7) * Math.PI * 2, r0 = 1.3 + Math.random() * 0.6, h = 1.8 + Math.random() * 1.2;
-    const pts: THREE.Vector3[] = [];
-    for (let k = 0; k <= 10; k++) {
-      const u = k / 10, a = a0 + u * 2.4 * (i % 2 ? 1 : -1), r = r0 * (1 - u * 0.7);
-      pts.push(new THREE.Vector3(Math.cos(a) * r, u * h - 0.2, Math.sin(a) * r));
-    }
-    const geometry = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 40, 0.09, 7);
-    // Taper toward the tip.
-    const pos = geometry.attributes.position as THREE.BufferAttribute;
-    for (let v = 0; v < pos.count; v++) {
-      const ring = Math.floor(v / 8) / 40;
-      const c = new THREE.CatmullRomCurve3(pts).getPoint(ring);
-      tmp.fromBufferAttribute(pos, v).sub(c).multiplyScalar(1 - ring * 0.85).add(c);
-      pos.setXYZ(v, tmp.x, tmp.y, tmp.z);
-    }
-    geometry.computeVertexNormals();
-    const root = new THREE.Mesh(geometry, bark);
-    root.position.copy(at);
-    root.scale.set(1, 0.001, 1);
-    for (let k = 1; k < 6; k++) {
-      const c = new THREE.CatmullRomCurve3(pts).getPoint(k / 6);
-      const s = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.22, 5), thorn);
-      s.position.copy(c);
-      s.lookAt(c.clone().multiplyScalar(2));
-      s.rotateX(Math.PI / 2);
-      root.add(s);
-    }
-    roots.push(root);
-    group.add(root);
-  }
-  const ring = facingPlane(ringTexture(), color, 1, undefined);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.copy(at).setY(at.y + 0.05);
-  group.add(ring);
-  const life = 4.6;
-  return animate(group, life, (_t, age) => {
-    const grow = easeOutBack(clamp01((age - 0.35) / 0.45));
-    const sink = clamp01((age - (life - 0.7)) / 0.7);
-    roots.forEach((r, i) => {
-      r.scale.set(1, Math.max(0.001, grow * (1 - sink) * (0.9 + 0.1 * Math.sin(age * 3 + i))), 1);
-      r.rotation.y = Math.sin(age * 1.4 + i) * 0.05;
-    });
-    ring.scale.setScalar(0.5 + easeOutCubic(clamp01(age / 0.6)) * 3.2);
-    ring.material.opacity = clamp01(1 - age / 0.9) * 0.8;
-    if (Math.random() < 0.2 && age < life - 0.5) ctx.particles?.emit({ x: at.x + (Math.random() - 0.5) * 3, y: at.y + Math.random() * 2, z: at.z + (Math.random() - 0.5) * 3, vx: 0, vy: 0.3, vz: 0, color, size: 0.06, sizeEnd: 0.01, ttl: 1, drag: 1, style: 'glow' });
-  }, 0.55, () => {
-    ctx.mist?.burst(at.clone().setY(at.y + 0.3), 14, { speed: 2.2, direction: UP, spread: 2, color: new THREE.Color('#5d5040'), size: 0.9, sizeEnd: 2, alpha: 0.35, ttl: 1.3, drag: 1.6, style: 'mist' });
-    ctx.particles?.burst(at, 30, { speed: 4, direction: UP, spread: 1.2, color: new THREE.Color('#6b5a44'), size: 0.06, ttl: 0.9, gravity: 9, drag: 0.6, style: 'spark' });
-    ctx.screen?.shake(0.15);
-  }, () => { bark.dispose(); thorn.dispose(); });
-}
+/* Ember Lash, Thornsnare, Blackthorn Wake, Wisp Swarm, Tidecaller and Screech of Pain are staged in fx/. */
 
 /* ─────────────────────────────── LANE SPELLS ─────────────────────────────── */
 
@@ -104,37 +40,6 @@ function laneOf(ctx: SpellContext, target: THREE.Vector3): { from: THREE.Vector3
   const dir = to.clone().sub(from).setY(0);
   const length = Math.max(4, dir.length());
   return { from, dir: dir.normalize(), length };
-}
-
-function blackthornWake(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  const { from, dir, length } = laneOf(ctx, target);
-  const reach = Math.min(length, 50);
-  const bark = new THREE.MeshBasicMaterial({ color: '#584637' });
-  const sap = new THREE.MeshBasicMaterial({ color });
-  const shoots: { stem: THREE.Group; at: number }[] = [];
-  for (let distance = 1; distance <= reach; distance += 1.35) {
-    const stem = new THREE.Group();
-    const lean = Math.sin(distance * 2.3) * 0.55;
-    const height = 1.45 + 0.5 * Math.cos(distance);
-    stem.add(new THREE.Mesh(tube([[0,-0.1,0],[lean,0.65,0.22],[lean*0.5,height,0.7],[0,height+0.16,1.3]], [0.21,0.16,0.07,0.004], {radial:7}), bark));
-    stem.add(new THREE.Mesh(tube([[lean,0.65,0.22],[lean-0.28,1.05,0.36],[lean-0.42,1.16,0.63]], [0.095,0.055,0.002], {radial:6}), sap));
-    stem.position.copy(from).addScaledVector(dir,distance);
-    stem.position.y = terrainHeight(stem.position.x,stem.position.z);
-    stem.rotation.y = Math.atan2(dir.x,dir.z);
-    stem.visible = false;
-    shoots.push({stem,at:0.18+distance/34});
-    group.add(stem);
-  }
-  let hit = 0;
-  return animate(group, 1.3+reach/34, (_t,age) => {
-    for (const {stem,at} of shoots) {
-      const local = age-at;
-      stem.visible = local >= 0 && local < 1;
-      if (stem.visible) stem.scale.y = easeOutCubic(clamp01(local/0.12)) * clamp01((1-local)/0.42);
-    }
-    while (ctx.delays && hit < ctx.delays.length && age >= ctx.delays[hit]) impactBurst(ctx,ctx.targets![hit++],color,0.5);
-  }, 0.18);
 }
 
 function earthshatter(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
@@ -222,115 +127,6 @@ function spiritStag(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext
     ctx.illuminate?.(1, tmp.copy(p).setY(p.y + 2), color, 1.4 * clamp01(age / 0.2) * clamp01(1 - Math.max(0, age - travel) / 0.8), 9);
     while (ctx.delays && hitIndex < ctx.delays.length && age >= ctx.delays[hitIndex]) { impactBurst(ctx, ctx.targets![hitIndex], color, 1.3); ctx.screen?.shake(0.12); hitIndex++; }
   }, 0.1, () => ctx.screen?.flash('#f2f7ff', 0.2), () => { trail.dispose(); stag.dispose(); });
-}
-
-function dawnbreak(origin: THREE.Vector3, target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  const { from, dir, length } = laneOf(ctx, target);
-  const reach = Math.min(length, 60);
-  const start = ctx.cameraPosition ? below(ctx, 1.4, ctx.hand === 'left' ? -1 : 1) : origin.clone();
-  const end = from.clone().addScaledVector(dir, reach).setY(start.y + 1.5);
-  const axis = end.clone().sub(start);
-  const beamLength = axis.length();
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, beamLength, 24, 1, true), new THREE.ShaderMaterial({
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
-    uniforms: { uColor: { value: color.clone() }, uAlpha: { value: 0 }, uTime: { value: 0 } },
-    vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vN = normalize(normalMatrix * normal); vec4 mv = modelViewMatrix * vec4(position, 1.0); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: `uniform vec3 uColor; uniform float uAlpha; uniform float uTime; varying vec2 vUv; varying vec3 vN; varying vec3 vV;
-      void main(){ float edge = pow(abs(dot(vN, vV)), 1.5); float flow = 0.75 + 0.25 * sin(vUv.y * 40.0 - uTime * 30.0);
-        gl_FragColor = vec4(mix(uColor, vec3(1.0), edge * 0.8) * 1.6, edge * uAlpha * flow); }`,
-  }));
-  beam.position.copy(start).addScaledVector(axis, 0.5);
-  beam.quaternion.setFromUnitVectors(UP, axis.clone().normalize());
-  group.add(beam);
-  const sun = facingPlane(flareTexture(), color, 6, ctx.cameraQuaternion);
-  sun.position.copy(end);
-  group.add(sun);
-  let hitIndex = 0;
-  return animate(group, 2.6, (_t, age) => {
-    const on = clamp01(age / 0.15) * clamp01(1 - (age - 1.6) / 0.9);
-    const m = beam.material as THREE.ShaderMaterial;
-    m.uniforms.uAlpha.value = on;
-    m.uniforms.uTime.value = age;
-    beam.scale.set(0.45 + Math.sin(age * 30) * 0.03 + on * 0.25, 1, 0.45 + on * 0.25);
-    sun.scale.setScalar(1 + on * 2.5 + Math.sin(age * 9) * 0.1);
-    sun.material.opacity = on;
-    ctx.illuminate?.(0, end, color, 3 * on, 30);
-    ctx.illuminate?.(1, start.clone().lerp(end, 0.4), color, 2 * on, 18);
-    while (ctx.delays && hitIndex < ctx.delays.length && age >= ctx.delays[hitIndex]) { impactBurst(ctx, ctx.targets![hitIndex], color, 1.4); hitIndex++; }
-  }, 0.18, () => { ctx.screen?.flash('#ffe7a3', 0.4); ctx.screen?.shake(0.3); });
-}
-
-/* ─────────────────────────────── SEEKERS AND FALLS ─────────────────────────────── */
-
-function wispSwarm(origin: THREE.Vector3, target: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  // With nothing to hunt, the wisps still fly out toward the aim and burst there.
-  const targets = ctx.targets?.length ? ctx.targets : [0, 1, 2, 3].map((i) => target.clone().add(new THREE.Vector3((i - 1.5) * 1.2, (i % 2) * 0.8, 0)));
-  const delays = ctx.targets?.length ? ctx.delays ?? [] : [0.8, 0.9, 1.0, 1.1];
-  const wisps = targets.map((to, i) => {
-    const head = glowSprite(color.clone().lerp(WHITE, 0.3), 0.42, undefined, 1);
-    const trail = new Trail(color, 0.1, 0.5, 36, 1);
-    group.add(head, trail.mesh);
-    const start = origin.clone();
-    const swirl = new THREE.Vector3(Math.cos(i * 1.6) * 1.6, 1.2 + (i % 2) * 0.8, Math.sin(i * 1.6) * 1.6 - 1.2);
-    const curve = new THREE.CubicBezierCurve3(start, start.clone().add(swirl), to.clone().add(new THREE.Vector3(0, 3, 0)), to);
-    return { head, trail, curve, delay: delays[i] ?? 0.9, done: false, to };
-  });
-  const p = new THREE.Vector3();
-  const life = Math.max(1.2, ...wisps.map((w) => w.delay)) + 0.8;
-  return animate(group, life, (_t, age, dt) => {
-    for (const w of wisps) {
-      const u = clamp01(age / w.delay);
-      w.curve.getPoint(u * u * (3 - 2 * u), p);
-      w.head.position.copy(p);
-      w.head.visible = u < 1;
-      if (u < 1) w.trail.push(p);
-      w.trail.update(dt, ctx.cameraPosition);
-      w.trail.opacity = clamp01(1 - Math.max(0, age - w.delay) / 0.4);
-      if (!w.done && u >= 1) { w.done = true; impactBurst(ctx, w.to, color, 0.8); }
-    }
-  }, 0.2, undefined, () => wisps.forEach((w) => w.trail.dispose()));
-}
-
-function starfall(color: THREE.Color, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  const targets = ctx.targets ?? [];
-  const delays = ctx.delays ?? [];
-  const stars = targets.map((to, i) => {
-    const from = to.clone().add(new THREE.Vector3(-6 + Math.random() * 3, 26, -8));
-    const head = glowSprite(color.clone().lerp(WHITE, 0.5), 1.1, undefined, 1);
-    const trail = new Trail(color, 0.45, 0.6, 30, 1);
-    group.add(head, trail.mesh);
-    return { from, to, head, trail, at: delays[i] ?? 1, done: false };
-  });
-  // A few that fall wide, for the sky's sake.
-  for (let i = 0; i < 6; i++) {
-    const to = new THREE.Vector3((Math.random() - 0.5) * 40, 0, -10 - Math.random() * 30);
-    to.y = terrainHeight(to.x, to.z);
-    const head = glowSprite(color, 0.8, undefined, 0.8);
-    const trail = new Trail(color, 0.3, 0.5, 24, 1);
-    group.add(head, trail.mesh);
-    stars.push({ from: to.clone().add(new THREE.Vector3(-5, 26, -8)), to, head, trail, at: 0.7 + Math.random() * 1.6, done: false });
-  }
-  const p = new THREE.Vector3();
-  const life = Math.max(1.5, ...stars.map((s) => s.at)) + 1;
-  return animate(group, life, (_t, age, dt) => {
-    for (const s of stars) {
-      const u = clamp01((age - (s.at - 0.7)) / 0.7);
-      p.copy(s.from).lerp(s.to, u * u);
-      s.head.position.copy(p);
-      s.head.visible = u > 0 && u < 1;
-      if (u > 0 && u < 1) s.trail.push(p);
-      s.trail.update(dt, ctx.cameraPosition);
-      if (!s.done && u >= 1) {
-        s.done = true;
-        impactBurst(ctx, s.to, color, 1.3);
-        ctx.mist?.burst(s.to.clone(), 6, { speed: 1.5, color: new THREE.Color('#5d5a66'), size: 1, sizeEnd: 2.2, alpha: 0.3, ttl: 1.2, drag: 1.4, style: 'mist' });
-        ctx.screen?.shake(0.08);
-      }
-    }
-  }, 0.2, () => ctx.screen?.flash('#ffd9f2', 0.15), () => stars.forEach((s) => s.trail.dispose()));
 }
 
 /* ─────────────────────────────── AROUND THE CASTER ─────────────────────────────── */
@@ -431,35 +227,6 @@ function verdantBloom(origin: THREE.Vector3, color: THREE.Color, ctx: SpellConte
   }, 0.3, () => ctx.screen?.flash('#bfffb0', 0.25), () => { petal.dispose(); petal2.dispose(); stem.dispose(); });
 }
 
-function tidecaller(color: THREE.Color, ctx: SpellContext): SpellAnimation {
-  const group = new THREE.Group();
-  const cam = (ctx.cameraPosition ?? new THREE.Vector3()).clone();
-  const q = ctx.cameraQuaternion;
-  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(q).setY(0).normalize();
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(q).setY(0).normalize();
-  // A serpent of water swims across the field from one side to the other, rearing as it goes.
-  const body = new Trail(color, 1.6, 0.9, 60, 1.2);
-  const foam = new Trail(new THREE.Color('#e8fbff'), 0.5, 0.7, 60, 1);
-  const head = glowSprite('#bff4ff', 1.8, undefined, 1);
-  group.add(body.mesh, foam.mesh, head);
-  const p = new THREE.Vector3();
-  let hitIndex = 0;
-  return animate(group, 3.2, (_t, age, dt) => {
-    const u = clamp01(age / 2.4);
-    const across = -26 + u * 52;
-    p.copy(cam).addScaledVector(forward, 16 + Math.sin(u * Math.PI * 3) * 6).addScaledVector(right, across);
-    p.y = terrainHeight(p.x, p.z) + 1.2 + Math.abs(Math.sin(u * Math.PI * 4)) * 2.2;
-    head.position.copy(p);
-    head.visible = u < 1;
-    if (u < 1) { body.push(p); foam.push(tmp.copy(p).setY(p.y + 0.5)); }
-    body.update(dt, cam); foam.update(dt, cam);
-    body.opacity = foam.opacity = clamp01((3.2 - age) / 0.8);
-    if (u < 1) for (let i = 0; i < 3; i++) ctx.particles?.emit({ x: p.x + (Math.random() - 0.5) * 1.5, y: p.y, z: p.z + (Math.random() - 0.5) * 1.5, vx: (Math.random() - 0.5) * 2, vy: 2 + Math.random() * 2, vz: (Math.random() - 0.5) * 2, color: Math.random() < 0.6 ? color : new THREE.Color('#e8fbff'), size: 0.08, ttl: 0.8, gravity: 7, drag: 0.5, style: 'spark' });
-    ctx.illuminate?.(1, p, color, 1.2, 12);
-    while (ctx.delays && hitIndex < ctx.delays.length && age >= ctx.delays[hitIndex]) { impactBurst(ctx, ctx.targets![hitIndex], color, 1.2); hitIndex++; }
-  }, 0.4, () => ctx.screen?.flash('#5fd0e8', 0.2), () => { body.dispose(); foam.dispose(); });
-}
-
 function stillness(color: THREE.Color, ctx: SpellContext): SpellAnimation {
   const group = new THREE.Group();
   const cam = (ctx.cameraPosition ?? new THREE.Vector3()).clone();
@@ -493,12 +260,11 @@ export function createSpellAnimation2(kind: SpellEffect, origin: THREE.Vector3, 
     case 'flare': return sunflare(origin, color, ctx);
     case 'quake': return earthshatter(target, color, ctx);
     case 'veil': return moonveil(origin, color, ctx);
-    case 'tide': return tidecaller(color, ctx);
+    case 'tide': return tidecaller(target, color, ctx);
     case 'bloom': return verdantBloom(origin, color, ctx);
     case 'stag': return spiritStag(target, color, ctx);
-    case 'starfall': return starfall(color, ctx);
+    case 'screech': return screech(origin, color, ctx);
     case 'stillness': return stillness(color, ctx);
-    case 'dawn': return dawnbreak(origin, target, color, ctx);
     default: return null;
   }
 }

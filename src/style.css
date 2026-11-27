@@ -660,13 +660,24 @@ kbd {
   font-size: 0.88rem;
   color: var(--mist);
 }
-.close {
-  border: 0;
-  background: none;
-  font-size: 1.6rem;
-  line-height: 1;
+.panel-close {
+  position: fixed;
+  z-index: 26;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.4rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(13, 15, 14, 0.94);
+  color: var(--vellum);
   cursor: pointer;
-  color: var(--mist);
+}
+.panel-close:hover,
+.panel-close:focus-visible {
+  border-color: #dfe8d3;
+}
+.panel-close[hidden] {
+  display: none;
 }
 .row {
   display: flex;

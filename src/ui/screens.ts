@@ -63,11 +63,10 @@ export class LoadingScreen {
       el('div', { class: 'load-center' },
         el('p', { class: 'load-eyebrow' }, 'A dark fairy-tale adventure'),
         title,
-        el('p', { class: 'load-tag' }, 'Forty levels. Eight rulers. One wood to free.'),
+        el('p', { class: 'load-tag' }, 'Something in the wood is listening. Keep your hands where it can see them.'),
         el('div', { class: 'load-meter', role: 'progressbar', 'aria-label': 'Loading' }, this.bar),
         this.label,
         this.enter,
-        el('p', { class: 'load-note' }, 'Played with your hands through your webcam. Nothing is recorded or sent anywhere.'),
       ),
     );
     this.root.hidden = false;
@@ -139,6 +138,7 @@ export class MenuScreen {
         this.status,
       ),
       el('p', { class: 'menu-foot' }, 'Esc pauses · M mutes'),
+      el('p', { class: 'menu-privacy' }, 'Played with your hands through your webcam. Nothing is recorded or sent anywhere.'),
     );
   }
 

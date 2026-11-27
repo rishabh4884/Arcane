@@ -5,7 +5,7 @@ import { CREATURE_SPECS, NO_SCALING, type CreatureKind, type Scaling } from '../
  * ───────────
  * Forty levels in four chapters. Each chapter is eight levels of three waves, a ninth where a
  * sub-boss comes alone after the last wave, and a tenth where the chapter's ruler waits, introduced
- * by a cutscene. Every seventh level ends with a piece of the story; every boss surrenders a spell.
+ * by a cutscene. Every seventh level ends with a piece of the story; every boss but the last surrenders a spell.
  */
 
 export type Mood = 'edge' | 'fen' | 'deeps' | 'throne' | 'dawn';
@@ -122,7 +122,7 @@ const BOSSES: Record<number, CreatureKind> = {
   9: 'gorrik', 10: 'matron', 19: 'fenwyrm', 20: 'grael', 29: 'stag', 30: 'widow', 39: 'herald', 40: 'king',
 };
 const REWARDS: Record<number, string> = {
-  9: 'spell-13', 10: 'spell-14', 19: 'spell-15', 20: 'spell-16', 29: 'spell-17', 30: 'spell-18', 39: 'spell-19', 40: 'spell-20',
+  9: 'spell-13', 10: 'spell-14', 19: 'spell-15', 20: 'spell-16', 29: 'spell-17', 30: 'spell-18', 39: 'spell-19',
 };
 
 const TIPS: Record<number, string> = {

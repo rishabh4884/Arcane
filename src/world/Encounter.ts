@@ -47,6 +47,10 @@ interface Actor extends Foe {
   blink: { age: number; to: THREE.Vector3; moved: boolean } | null;
   removeAt: number;
   elder: boolean;
+  /** Thrown back by a scream: slides away from the caster, slowing. */
+  knock: { dir: THREE.Vector3; speed: number } | null;
+  /** 0..1 lasting rage (the Widow, for every egg of hers broken). */
+  anger: number;
 }
 
 interface Projectile {
@@ -108,7 +112,7 @@ const COLORS: Record<ProjectileStyle, string> = {
   ember: '#ffb066', bile: '#a8e05a', boulder: '#7c766a', lantern: '#ffc36a', moth: '#c9a8ff', pale: '#cfe6ff', cold: '#8fdcff', star: '#b59cff', wisp: '#9ff0d4',
 };
 const BOSS_COLOR: Partial<Record<CreatureKind, string>> = {
-  gorrik: '#ffb066', fenwyrm: '#a8e05a', stag: '#8fdcff', herald: '#cfe6ff', matron: '#c9a8ff', grael: '#ffd27a', widow: '#ffc36a', king: '#9a7cff',
+  gorrik: '#ffb066', fenwyrm: '#a8e05a', stag: '#8fdcff', herald: '#cfe6ff', matron: '#c9a8ff', grael: '#ffd27a', widow: '#d8434f', king: '#9a7cff',
 };
 /** The court a final boss calls at each phase. */
 const COURT: Partial<Record<CreatureKind, WaveGroup[][]>> = {
@@ -169,7 +173,7 @@ export class Encounter {
   forceAttack(id: string): boolean {
     const a = this.boss;
     if (!a || !a.state.alive || a.figure.fade > 0.25) return false;
-    a.rush = null; a.blink = null;
+    a.rush = null; a.blink = null; a.knock = null;
     return a.state.force(id);
   }
 
@@ -187,7 +191,7 @@ export class Encounter {
 
     for (const actor of this.actors) {
       if (!actor.state.alive) continue;
-      actor.state.hit('dawn', Number.MAX_SAFE_INTEGER);
+      actor.state.hit('quake', Number.MAX_SAFE_INTEGER);
       this.release(actor);
     }
     return true;
@@ -199,7 +203,7 @@ export class Encounter {
     this.pendingSpawns.length = 0;
     for (const actor of this.actors) {
       if (!actor.state.alive) continue;
-      actor.state.hit('dawn', Number.MAX_SAFE_INTEGER);
+      actor.state.hit('quake', Number.MAX_SAFE_INTEGER);
       this.release(actor);
     }
     this.win();
@@ -239,7 +243,7 @@ export class Encounter {
     const b = this.boss;
     return {
       mode: this.mode, wave: Math.max(0, this.waveIndex + 1), waves: this.level?.waves.length ?? 0,
-      alive: this.actors.filter((a) => a.state.alive).length + this.pendingSpawns.length,
+      alive: this.actors.filter((a) => a.state.alive && a.kind !== 'egg').length + this.pendingSpawns.length,
       boss: b ? { name: b.spec.name, title: b.spec.title ?? '', health: b.state.health, max: b.state.maxHealth, phase: b.bossPhase } : null,
       player: this.player, stats: { ...this.stats },
     };
@@ -270,6 +274,20 @@ export class Encounter {
     this.setMode('boss-intro');
     this.pendingSpawns.push({ at: this.time + (level.kind === 'final' ? 0.6 : 2.4), kind: level.boss!, from: 'front', slot: 0, boss: true });
     this.fx.events?.emit({ type: 'boss', kind: level.boss!, phase: 0, name: CREATURE_SPECS[level.boss!].name, title: CREATURE_SPECS[level.boss!].title ?? '' });
+    // The Widow comes to her brood: clutches of eggs lie in the clearing, between her and the caster.
+    if (level.boss === 'widow' && !level.trial) {
+      const r = mulberry(this.generation * 313 + 7);
+      let slot = 900;
+      for (const [cx, cz] of [[-8, -15], [7.5, -18], [-1.5, -10]]) {
+        for (let i = 0; i < 2; i++) {
+          const angle = r() * Math.PI * 2, d = 0.7 + r() * 0.6;
+          const at = new THREE.Vector3(cx + Math.cos(angle) * d, 0, cz + Math.sin(angle) * d);
+          moveOnGround(at, 0, 0, this.obstacles);
+          at.y = terrainHeight(at.x, at.z);
+          this.spawn('egg', 'front', slot++, false, at);
+        }
+      }
+    }
   }
 
   private updateFlow(dt: number): void {
@@ -281,7 +299,7 @@ export class Encounter {
       const s = this.pendingSpawns[i];
       if (this.time >= s.at) { this.pendingSpawns.splice(i, 1); this.spawn(s.kind, s.from, s.slot, s.boss); }
     }
-    const living = this.actors.some((a) => a.state.alive) || this.pendingSpawns.length > 0;
+    const living = this.actors.some((a) => a.state.alive && a.kind !== 'egg') || this.pendingSpawns.length > 0;
     switch (this.mode) {
       case 'intro':
         if (this.modeTime > 2.6) { if (level.waves.length) this.beginWave(0); else this.beginBoss(); }
@@ -343,8 +361,8 @@ export class Encounter {
     const level = this.level;
     const base = level?.scaling ?? { health: 1, damage: 1, speed: 1 };
     // From the Mirefen on, a wave may carry an elder: bigger, tougher, eyes burning.
-    const elder = !boss && spec.rank === 'normal' && (level?.id ?? 0) >= 11 && Math.random() < 0.12 + (level?.chapter ?? 1) * 0.02;
-    const scaling = elder ? { health: base.health * 1.9, damage: base.damage * 1.3, speed: base.speed * 1.05 } : base;
+    const elder = !boss && kind !== 'egg' && spec.rank === 'normal' && (level?.id ?? 0) >= 11 && Math.random() < 0.12 + (level?.chapter ?? 1) * 0.02;
+    const scaling = kind === 'egg' ? { health: 1, damage: 1, speed: 1 } : elder ? { health: base.health * 1.9, damage: base.damage * 1.3, speed: base.speed * 1.05 } : base;
     const figure = new Character(DESIGNS[kind], Math.random());
     if (elder) { figure.group.scale.setScalar(1.18); figure.overrides.eyes = 2.4; }
     const position = at?.clone() ?? this.spawnPoint(from, slot, spec.radius, boss);
@@ -359,9 +377,9 @@ export class Encounter {
     const actor: Actor = {
       id: this.nextId++, kind, spec, figure, state: new CreatureState(kind, scaling, this.nextId * 7919 + this.generation), boss: spec.rank !== 'normal',
       velocity: new THREE.Vector3(), phase: Math.random() * 10, strafe: Math.random() < 0.5 ? -1 : 1, strafeTimer: 1 + Math.random() * 2,
-      lastPose: 'idle', warning, rush: null, altitude: spec.hover ?? 0, burnTick: 0, bossPhase: 0, haste: 1, blink: null, removeAt: -1, elder,
+      lastPose: 'idle', warning, rush: null, altitude: spec.hover ?? 0, burnTick: 0, bossPhase: 0, haste: 1, blink: null, removeAt: -1, elder, knock: null, anger: 0,
     };
-    if (boss && level?.trial) actor.state.passive = true;
+    if ((boss && level?.trial) || kind === 'egg') actor.state.passive = true;
     this.actors.push(actor);
     if (boss) {
       this.boss = actor;
@@ -533,27 +551,38 @@ export class Encounter {
         for (const a of this.actors) if (a.state.alive && a.figure.group.position.distanceTo(at) < 2.6 + a.spec.radius) this.queued.push({ foe: a, effect, at: this.time + 0.55, point: this.centre(a, new THREE.Vector3()), generation: this.generation });
         return { points, delays };
       }
-      case 'blade': case 'quake': case 'stag': case 'dawn': {
-        const width = effect === 'blade' ? 1.4 : effect === 'quake' ? 2.0 : effect === 'stag' ? 2.4 : 1.6;
-        const speed = effect === 'blade' ? 34 : effect === 'quake' ? 22 : effect === 'stag' ? 18 : 90;
-        const hits = this.lane(ground, dir, width);
-        for (const { foe, along } of hits) queue(foe, 0.18 + along / speed);
-        if (effect === 'dawn') for (const a of this.visible()) if (!hits.some((h) => h.foe === a)) queue(a, 0.5, 40);
+      case 'blade': case 'quake': case 'stag': {
+        const width = effect === 'blade' ? 1.4 : effect === 'quake' ? 2.0 : 2.4;
+        const speed = effect === 'blade' ? 34 : effect === 'quake' ? 22 : 18;
+        for (const { foe, along } of this.lane(ground, dir, width)) queue(foe, 0.18 + along / speed);
         const to = ground.clone().addScaledVector(dir.clone().setY(0).normalize(), 50);
         return { points, delays, lane: { from: ground, to } };
       }
       case 'wisps': {
         const from = aimPoint;
         const near = this.visible().sort((a, b) => a.figure.group.position.distanceTo(from) - b.figure.group.position.distanceTo(from)).slice(0, 4);
-        near.forEach((a, i) => queue(a, 0.75 + i * 0.12 + a.figure.group.position.distanceTo(this.camera.position) * 0.018));
+        near.forEach((a, i) => queue(a, 1.35 + i * 0.14 + a.figure.group.position.distanceTo(this.camera.position) * 0.012));
         return { points, delays };
       }
       case 'flare': for (const a of this.visible()) queue(a, 0.25); return { points, delays };
-      case 'tide': for (const a of this.visible(60)) queue(a, 0.6 + a.figure.group.position.distanceTo(this.camera.position) / 30); return { points, delays };
-      case 'starfall': {
-        const all = this.visible(60);
-        all.forEach((a, i) => queue(a, 0.9 + i * 0.18));
-        if (aimFoe && all.includes(aimFoe as Actor)) queue(aimFoe as Actor, 1.4 + all.length * 0.18);
+      case 'tide': {
+        // The serpent swims for the main quarry (the aimed one, else the greatest, else the nearest);
+        // when it breaks there, the wave rolls out over the rest. The main target is always first.
+        const seen = this.visible(60);
+        const cam = this.camera.position;
+        const main = (aimFoe && seen.includes(aimFoe as Actor) ? aimFoe as Actor : null)
+          ?? seen.slice().sort((a, b) => Number(b.boss) - Number(a.boss) || b.spec.height - a.spec.height || a.figure.group.position.distanceTo(cam) - b.figure.group.position.distanceTo(cam))[0];
+        if (!main) return { points, delays };
+        const crash = 0.75 + main.figure.group.position.distanceTo(cam) / 16;
+        queue(main, crash);
+        for (const a of seen) if (a !== main) queue(a, crash + 0.15 + a.figure.group.position.distanceTo(main.figure.group.position) / 18);
+        return { points, delays };
+      }
+      case 'screech': {
+        // The scream rolls out from the caster: nearer things are thrown first.
+        for (const a of this.visible(18)) queue(a, 0.22 + a.figure.group.position.distanceTo(this.camera.position) * 0.02);
+        const at = this.camera.position.clone();
+        this.fx.events?.emit({ type: 'screech', position: at, pan: 0, strength: 1, source: 'caster' });
         return { points, delays };
       }
       case 'stillness': for (const a of this.actors) if (a.state.alive) { a.state.stunFor(6); a.figure.still(a.boss ? 3 : 6); } return { points, delays };
@@ -571,21 +600,31 @@ export class Encounter {
     if (this.disposed || !a.state.alive || !this.active) return;
     const before = a.state.health;
     let base = amount ?? SPELL_DAMAGE[effect] ?? 0;
+    // An egg counts blows, not their weight: any five break it, a burn's ticks do not.
+    if (a.kind === 'egg') { if (amount !== undefined || !base) return; base = 1; }
     // A precise shot to the head or upper body strikes deeper.
     const aimed = effect === 'arrow' || effect === 'lightning' || effect === 'fire' || effect === 'frost';
     const bodyBase = a.figure.group.position.y + (a.spec.hover ? a.altitude : 0);
-    const critical = aimed && amount === undefined && (point.y - bodyBase) / (a.spec.height * a.figure.group.scale.y) > 0.74;
+    const critical = aimed && a.kind !== 'egg' && amount === undefined && (point.y - bodyBase) / (a.spec.height * a.figure.group.scale.y) > 0.74;
     if (critical) base = Math.round(base * 1.6);
     if (!a.state.hit(effect, base)) {
       if (effect === 'flare' || effect === 'stillness') a.state.stunFor(1.8);
       return;
     }
     this.stats.hits++;
-    if (effect === 'fire') { a.state.burn = 4; a.burnTick = 1; }
+    if (effect === 'fire' && a.kind !== 'egg') { a.state.burn = 4; a.burnTick = 1; }
     if (effect === 'roots' || effect === 'quake') a.state.rootFor(effect === 'roots' ? 4 : 1.2);
     if (effect === 'flare' || effect === 'quake') a.state.stunFor(effect === 'flare' ? 1.8 : 1);
     if (effect === 'tide') this.push(a, 4);
-    a.figure.hit(Math.min(2, base / 40));
+    if (effect === 'screech' && a.state.alive && a.kind !== 'egg') {
+      a.state.interrupt();
+      a.state.stunFor(a.boss ? 0.8 : 1.6);
+      const p = a.figure.group.position;
+      const dir = new THREE.Vector3(p.x - this.camera.position.x, 0, p.z - this.camera.position.z).normalize();
+      // Speed decays at 4/s, so the slide covers speed / 4 metres.
+      a.knock = { dir, speed: a.boss ? 8 : 22 };
+    }
+    a.figure.hit(Math.min(2, a.kind === 'egg' ? 0.6 : base / 40));
     if (effect === 'frost') a.figure.u.uFlashColor.value.set('#bfe3ff');
     else if (effect === 'fire') a.figure.u.uFlashColor.value.set('#ffb066');
     else a.figure.u.uFlashColor.value.set('#fff2d8');
@@ -593,9 +632,27 @@ export class Encounter {
     this.indicators.hit(a.id, this.centre(a, new THREE.Vector3()).setY(top.y + a.spec.height * 0.75 + (a.spec.hover ? a.altitude : 0)), before - a.state.health, critical ? 'critical' : effect);
     if (a.state.alive) this.fx.events?.emit({ type: 'enemy-hit', kind: a.kind, position: top, pan: this.pan(top), effect, amount: before - a.state.health, critical });
     else this.release(a);
+    if (a.kind === 'egg' && !a.state.alive) this.broodLost(a);
     if (effect === 'frost') this.fx.particles?.burst(point, 18, { speed: 2.4, color: new THREE.Color('#cfe8ff'), size: 0.06, ttl: 0.8, gravity: 4, drag: 1.2, style: 'spark' });
     this.checkPhase(a);
   }
+
+  /** An egg split open: the Widow grows angrier, faster, and screams at once. */
+  private broodLost(egg: Actor): void {
+    const p = egg.figure.group.position;
+    const widow = this.boss?.kind === 'widow' && this.boss.state.alive ? this.boss : null;
+    if (widow) {
+      widow.anger = Math.min(1, widow.anger + 0.2);
+      widow.haste = this.haste(widow);
+      widow.state.force('screech');
+    }
+    this.fx.events?.emit({ type: 'egg-break', position: p.clone(), pan: this.pan(p), anger: widow?.anger ?? 0 });
+    this.fx.particles?.burst(p.clone().setY(p.y + 0.5), 26, { speed: 2.6, color: new THREE.Color('#d9d2a8'), size: 0.09, sizeEnd: 0.02, ttl: 1.1, gravity: 6, drag: 1.4, style: 'spark' });
+    this.fx.particles?.burst(p.clone().setY(p.y + 0.3), 14, { speed: 1.4, color: new THREE.Color('#9fb86a'), size: 0.16, sizeEnd: 0.04, ttl: 1.6, gravity: 3, drag: 2, style: 'glow' });
+  }
+
+  /** A boss's speed: quicker each phase, and quicker still with rage. */
+  private haste(a: Actor): number { return 1 + a.bossPhase * 0.14 + a.anger * 0.5; }
 
   private release(a: Actor): void {
     this.stats.released++;
@@ -605,7 +662,7 @@ export class Encounter {
     if (a.boss) {
       // A boss's fall clears its court and every attack still in the air.
       this.clearProjectiles();
-      for (const other of this.actors) if (other !== a && other.state.alive) { other.state.hit('dawn', 99999); this.fx.events?.emit({ type: 'enemy-death', kind: other.kind, position: other.figure.group.position.clone(), pan: this.pan(other.figure.group.position), height: other.spec.height }); }
+      for (const other of this.actors) if (other !== a && other.state.alive) { other.state.hit('quake', 99999); this.fx.events?.emit({ type: 'enemy-death', kind: other.kind, position: other.figure.group.position.clone(), pan: this.pan(other.figure.group.position), height: other.spec.height }); }
       this.pendingSpawns.length = 0;
     }
   }
@@ -616,7 +673,7 @@ export class Encounter {
     const phase = fraction < 0.34 ? 2 : fraction < 0.67 ? 1 : 0;
     if (phase <= a.bossPhase) return;
     a.bossPhase = phase;
-    a.haste = 1 + phase * 0.14;
+    a.haste = this.haste(a);
     this.fx.events?.emit({ type: 'boss', kind: a.kind, phase, name: a.spec.name, title: a.spec.title ?? '' });
     const court = COURT[a.kind]?.[phase - 1];
     if (court && a.spec.rank === 'final') {
@@ -698,7 +755,9 @@ export class Encounter {
     // Movement.
     a.velocity.set(0, 0, 0);
     let faceYaw: number | null = Math.atan2(dx, dz);
+    if (a.knock) this.updateKnock(a, dt);
     if (a.blink) this.updateBlink(a, dt);
+    else if (a.knock) faceYaw = null;
     else if (a.rush && a.state.pose === 'strike') this.updateRush(a, dt, distance);
     else if (fighting && a.state.alive && a.state.mobile && a.state.pose === 'walk' && !emerging && !this.level?.trial) {
       this.steer(a, distance, dx, dz, dt);
@@ -717,7 +776,7 @@ export class Encounter {
     }
     a.figure.update(dt, {
       pose: a.state.pose, progress: a.state.progress, attack: a.state.attack.id, velocity: a.velocity, faceYaw,
-      look: this.camera.position, groundY: p.y + (spec.hover ? a.altitude : 0), reducedMotion,
+      look: this.camera.position, groundY: p.y + (spec.hover ? a.altitude : 0), reducedMotion, anger: a.anger,
     });
     if (spec.hover) a.figure.lift.position.y += a.altitude;
     if (a.blink) a.figure.u.uDissolve.value = a.blink.age < 0.45 ? a.blink.age / 0.45 : Math.max(0, 1 - (a.blink.age - 0.45) / 0.45);
@@ -823,7 +882,7 @@ export class Encounter {
       }
       case 'bolt': this.fire(a, 'ember', from, damage, 'straight', 3.6); break;
       case 'volley': {
-        const style: ProjectileStyle = a.kind === 'widow' ? 'lantern' : a.kind === 'herald' ? 'pale' : 'bile';
+        const style: ProjectileStyle = a.kind === 'widow' ? 'bile' : a.kind === 'herald' ? 'pale' : 'bile';
         const n = attack.count ?? 3;
         for (let i = 0; i < n; i++) this.fire(a, style, from, damage, 'straight', 5 + i * 0.3, (i - (n - 1) / 2) * 0.16, i * 0.12);
         break;
@@ -866,6 +925,13 @@ export class Encounter {
         }
         break;
       }
+      case 'screech': {
+        // A cry with no blow in it: the wood shakes and the caster flinches, nothing more.
+        const cry = a.figure.castPoint(new THREE.Vector3());
+        this.fx.events?.emit({ type: 'screech', position: cry, pan: this.pan(p), strength: 0.45 + a.anger * 0.25, source: 'widow' });
+        this.fx.mist?.burst(p.clone().setY(p.y + 0.4), 14, { speed: 3.2, color: new THREE.Color('#4f5c56'), size: 1.2, sizeEnd: 3.4, alpha: 0.3, ttl: 1.4, drag: 1.6, style: 'mist' });
+        break;
+      }
       case 'darkness':
         this.player.darkness = 9;
         this.fx.events?.emit({ type: 'darkness', seconds: 9 });
@@ -891,6 +957,16 @@ export class Encounter {
         break;
       }
     }
+  }
+
+  private updateKnock(a: Actor, dt: number): void {
+    const k = a.knock!;
+    const p = a.figure.group.position;
+    moveOnGround(p, k.dir.x * k.speed * dt, k.dir.z * k.speed * dt, this.obstacles);
+    p.y -= EYE_HEIGHT;
+    a.velocity.copy(k.dir).multiplyScalar(k.speed);
+    k.speed *= Math.exp(-4 * dt);
+    if (k.speed < 0.5 || !a.state.alive) a.knock = null;
   }
 
   private updateRush(a: Actor, dt: number, distance: number): void {

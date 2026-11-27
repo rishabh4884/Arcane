@@ -34,7 +34,7 @@ reason, and its *kind* of brightness tells the player what it is.
 | Light | Meaning | Look | Where |
 |---|---|---|---|
 | **Moonlight** | The neutral world. It organises every shot. | Cold silver-blue, directional, comes *through* openings | Canopy gaps, behind the treeline (backlight) |
-| **Captive light** | Light the wood has had stolen | Warm amber, dimmed, flickering, always *inside* something (cage, lantern, ribcage, cocoon, heart) | Lantern Wraith, Lantern Widow, the King's heart, dead lanterns, Gorrik's crown |
+| **Captive light** | Light the wood has had stolen | Warm amber, dimmed, flickering, always *inside* something (cage, lantern, ribcage, cocoon, heart) | Lantern Wraith, the King's heart, dead lanterns, Gorrik's crown |
 | **Free light** | The player's magic and life coming back | Pale gold-white plus the spell's own hue, crisp, moves with purpose | The Kindler's hands, spells, fireflies, lantern-flowers once freed, dawn |
 | **Decay light** | What grows in the dark | Cold teal bioluminescence, very restrained, never warm | The Deeps' fungi and glowworms, Fen wisps |
 
@@ -129,7 +129,7 @@ surface noise standing in for form.
 | **Bramble folk** | Bramble Goblin, Gorrik | Angular, triangular negative spaces, hunched S-curves, thorns *growing out of* the body |
 | **Root folk** | Rootbound, Grael | Twisting load-bearing strands under tension, knots at joints, gaps you can see through |
 | **The Hollow** | Antlered Hollow, Pale Herald, Hollow Stag, Warden / Unlit King | Tall verticals, skulls and branching antlers, long hanging cloth, stillness; bone white against the dark |
-| **Lantern folk** | Lantern Wraith, Lantern Widow | Concealing outer shapes with captive light inside, seen through openings and translucent edges |
+| **Lantern folk** | Lantern Wraith | Concealing outer shapes with captive light inside, seen through openings and translucent edges |
 | **Fen and wing** | Gloom Moth, Moth Matron, Fenwyrm | Large composed wing shapes with tension and markings; serpentine S-curves |
 | **Small friends** | Gnomes (Ember, Moss/Tuck), Bloomkin | Soft masses over clear structure; craftsmanship; warmth through behaviour, not mascot proportions |
 | **The Kindler** | The player's hands | Real hands, light under the skin |
@@ -211,10 +211,12 @@ idea, proportions, forms, materials, the history written into its asymmetry, and
 - A spectral stag: real deer anatomy (long skull, curved neck, ribcage, scapulae, cannon bones,
   backward hocks, split hooves) with hide in tatters and believably branching antlers, one broken.
 
-### Lantern Widow — Deeps final boss
-- Legs arranged radially from a compact body and an abdomen hung with lantern egg-sacs; a veiled,
-  narrow upper body. The leg arrangement is recognisable at a glance; legs move articulated and
-  coordinated (IK).
+### The Widow — Deeps final boss
+- Legs arranged radially from a compact body; segmented, bristled legs ending in hooked claws; a furred
+  abdomen with a red hourglass and spinnerets; an eight-eyed head with working fangs and palps; a veiled,
+  narrow upper body. No lanterns: her light is the red of her eyes and hourglass. She skitters, twitches,
+  rears up to threaten and throws her head back to screech, and grows faster and fiercer for every one
+  of her pale ground eggs the player breaks.
 
 ### Pale Herald — Throne sub-boss
 - The King's bell-ringer: tall, narrow, ash-pale robes, a bone mask, bells hung from a crook.

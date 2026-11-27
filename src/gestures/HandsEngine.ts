@@ -18,10 +18,13 @@ import {
   type TrackedHand,
 } from './GestureEngine.ts';
 import type { PoseName } from './poses.ts';
+import { detectShape, type ShapeName } from './shapes.ts';
 
 const NO_SUPPRESS: ReadonlySet<PoseName> = new Set();
 
 const WINDOW_MS = 1700;
+/** A two-hand shape outlives this much jitter at its angle limits, so a held heart does not restart. */
+const SHAPE_GRACE_MS = 140;
 /**
  * A hand counts as gone after `tuning.lostGraceMs` unseen, or after three of the tracker's results
  * when they come more slowly than that allows (one missed result, and some jitter, must not reset a
@@ -60,6 +63,10 @@ export class HandsEngine {
   private dualStillSince = 0;
   private dualLatched: PoseName | null = null;
   private lastDualAt = -Infinity;
+  private dualShape: ShapeName | null = null;
+  private dualShapeSince = 0;
+  private dualShapeSeenAt = -Infinity;
+  private dualShapeLatched: ShapeName | null = null;
   /** When the last tracker result arrived, and the recent gaps between results. */
   private lastResultAt = -Infinity;
   private readonly gaps: number[] = [];
@@ -97,6 +104,7 @@ export class HandsEngine {
     this.dualPose = 'unknown';
     this.dualStillSince = 0;
     this.dualLatched = null;
+    this.clearShape();
     this.lastPoses = { left: 'unknown', right: 'unknown' };
     this.bowWasEngaged = false;
   }
@@ -122,19 +130,21 @@ export class HandsEngine {
     // When both hands already hold the same shape and a two-hand sign wants it, the single-hand
     // gestures for that shape stand down so a double fist is one Blood Pact, not two fists + a pact.
     const suppress = this.suppressedPoses(!!bound.left && !!bound.right);
+    // A two-hand shape owns both hands: a crossed or inward open palm must never charge Aegis.
+    const shaping = !!bound.left && !!bound.right && this.dualShape !== null;
     // Bow intent: one hand points while the other brings thumb to index. The aiming hand's strikes
     // and the nocking hand's holds stand down so setting up a shot cannot cast something else.
     const intent = this.bowIntent(bound.left, bound.right);
     const L = this.left.process(bound.left, now, {
       suppressPoses: suppress,
       suppressPointing: intent === 'left-aims',
-      suppressHolds: intent === 'right-aims',
+      suppressHolds: intent === 'right-aims' || shaping,
       graceMs, frameMs,
     });
     const R = this.right.process(bound.right, now, {
       suppressPoses: suppress,
       suppressPointing: intent === 'right-aims',
-      suppressHolds: intent === 'left-aims',
+      suppressHolds: intent === 'left-aims' || shaping,
       graceMs, frameMs,
     });
     if (L.present) this.lastPoses.left = L.pose;
@@ -163,6 +173,7 @@ export class HandsEngine {
       this.dual = [];
       this.dualPose = 'unknown';
       this.dualLatched = null;
+      this.clearShape();
     }
     this.bowWasEngaged = bowEngaged && !bowResult.fired;
 
@@ -195,11 +206,21 @@ export class HandsEngine {
         this.dualPoseSince = now;
       }
       if (shared !== 'unknown' && shared !== this.dualLatched) this.dualLatched = null;
+
+      const seen = detectShape({ landmarks: L.landmarks, pose: L.pose }, { landmarks: R.landmarks, pose: R.pose }, scale);
+      if (seen) this.dualShapeSeenAt = now;
+      const shape = seen ?? (now - this.dualShapeSeenAt < SHAPE_GRACE_MS ? this.dualShape : null);
+      if (shape !== this.dualShape) {
+        this.dualShape = shape;
+        this.dualShapeSince = now;
+      }
+      if (shape !== this.dualShapeLatched) this.dualShapeLatched = null;
     } else {
       if (now - this.lastDualAt > graceMs) {
         this.dual = [];
         this.dualPose = 'unknown';
         this.dualLatched = null;
+        this.clearShape();
       }
     }
 
@@ -216,8 +237,23 @@ export class HandsEngine {
 
     if (leftOn && rightOn && !bowEngaged) {
       for (const g of this.gestures) {
-        if (g.kind === 'dual-pose') {
-          if (this.dualPose !== g.pose || this.dualLatched === g.pose) continue;
+        if (g.kind === 'dual-shape') {
+          if (this.dualShape !== g.shape || this.dualShapeLatched === g.shape) continue;
+          const since = Math.max(this.dualShapeSince, this.dualStillSince);
+          const progress = clamp01((now - since) / (g.holdMs ?? this.tuning.poseHoldMs));
+          dualHold = { gestureId: g.id, progress, side: 'both' };
+          if (progress >= 1 && dualReady) {
+            fired.push({ gestureId: g.id, side: 'both' });
+            this.dualShapeLatched = g.shape;
+            // Releasing the shape must not fall straight into Aegis, Eclipse or the Maw.
+            if (this.dualPose !== 'unknown') this.dualLatched = this.dualPose;
+            this.left.absorbCast(now, L.pose === 'unknown' ? undefined : L.pose);
+            this.right.absorbCast(now, R.pose === 'unknown' ? undefined : R.pose);
+            this.dual = [];
+          }
+        } else if (g.kind === 'dual-pose') {
+          // Inward palms, a cross or hanging horns are shapes, not Eclipse or the Maw.
+          if (this.dualShape || this.dualPose !== g.pose || this.dualLatched === g.pose) continue;
           const since = g.pose === 'open' ? Math.max(this.dualPoseSince, this.dualStillSince) : this.dualPoseSince;
           const progress = clamp01((now - since) / (g.holdMs ?? this.tuning.poseHoldMs));
           dualHold = { gestureId: g.id, progress, side: 'both' };
@@ -316,6 +352,12 @@ export class HandsEngine {
     if (!bothHands || this.dualPose === 'unknown') return NO_SUPPRESS;
     const claimed = this.gestures.some((g) => g.kind === 'dual-pose' && g.pose === this.dualPose);
     return claimed ? new Set<PoseName>([this.dualPose]) : NO_SUPPRESS;
+  }
+
+  private clearShape(): void {
+    this.dualShape = null;
+    this.dualShapeLatched = null;
+    this.dualShapeSeenAt = -Infinity;
   }
 
   /** True if either palm travelled more than STILL_TRAVEL palm-lengths within STILL_WINDOW_MS. */

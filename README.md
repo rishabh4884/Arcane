@@ -19,7 +19,7 @@ Hushwood was bright once. Its lights were taken, and the creatures that remain h
 
 - **A journey of 40 levels** across four chapters, each level three waves that grow harder.
 - **Eight bosses.** A sub-boss comes alone after the last wave of each chapter's ninth level; a ruler waits at the tenth, introduced by its own cutscene.
-- **Nineteen spells.** Eleven from the first night, and eight legendary spells taken from the bosses who rule the wood.
+- **Eighteen spells.** Eleven from the first night, and seven legendary spells torn from the bosses who rule the wood.
 - **A story told in scenes,** played live in the forest itself, never on video.
 - **Creatures with real bodies** that walk, side-step, turn, charge, fly and coil, each with attacks you learn to read.
 

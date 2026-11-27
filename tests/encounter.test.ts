@@ -13,6 +13,21 @@ import { Character } from '../src/world/rig/Character.ts';
 const kinds: CreatureKind[] = ['goblin', 'root', 'hollow', 'wraith', 'mossling', 'thornback', 'moth'];
 
 describe('telegraphed enemy simulation', () => {
+  it("the Widow's eggs break on the fifth blow and never fight back", () => {
+    const egg = new CreatureState('egg');
+    for (let i = 0; i < 4; i++) { egg.hit('arrow', 1); expect(egg.alive).toBe(true); }
+    egg.hit('arrow', 1); expect(egg.alive).toBe(false);
+    expect(CREATURE_SPECS.egg.speed).toBe(0);
+  });
+
+  it("the Widow's own screech is a threat, not a wound; Screech of Pain is both", () => {
+    const screech = CREATURE_SPECS.widow.attacks.find((a) => a.type === 'screech');
+    expect(screech?.damage).toBe(0);
+    const goblin = new CreatureState('goblin');
+    expect(goblin.hit('screech')).toBe(true);
+    expect(goblin.health).toBeLessThan(CREATURE_SPECS.goblin.health);
+  });
+
   it.each(kinds)('%s pursues, winds up and strikes only once per attack', (kind) => {
     const state = new CreatureState(kind), spec = CREATURE_SPECS[kind];
     const inRange = Math.max(spec.attacks[0].range[0] + 0.1, spec.range - 0.2);

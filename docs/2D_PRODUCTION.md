@@ -75,7 +75,7 @@ attacks (wind-up, strike, recover for each, ~30–40 drawings apiece), phase cha
 | Who | Role | Approx. drawings |
 |---|---|---|
 | Bramble Goblin, Rootbound, Antlered Hollow, Lantern Wraith, Mossling, Thornback, Gloom Moth | Common enemies | 7 × ~350 ≈ **2,500** |
-| Gorrik, Moth Matron, Fenwyrm, Grael, Hollow Stag, Lantern Widow, Pale Herald, Unlit King | Bosses | 8 × ~850 ≈ **6,800** |
+| Gorrik, Moth Matron, Fenwyrm, Grael, Hollow Stag, The Widow, Pale Herald, Unlit King | Bosses | 8 × ~850 ≈ **6,800** |
 | Tuck and the Ember gnome | Summoned allies (emerge, run, idle, cheer) and story | ≈ **500** |
 | Bloomkin | One species, five colour variants (one set of drawings, recoloured) | ≈ **150** |
 | The Warden | Story only | in cutscenes |

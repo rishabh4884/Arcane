@@ -46,6 +46,8 @@ function gestureSelect(book: SpellBook, spell: SpellDef): HTMLSelectElement {
 export class SettingsPanel {
   readonly toggleButton: HTMLButtonElement;
   private readonly panel = el('aside', { class: 'panel', id: 'spellbook', hidden: true, 'aria-label': 'Settings' });
+  // Sits above the panel, outside its scroll, so a long page never has to be scrolled back up to close.
+  private readonly closeButton = el('button', { class: 'panel-close', type: 'button', hidden: true, 'aria-label': 'Close settings', onclick: () => this.toggle(false) }, 'Close ×');
   private readonly o: SettingsOptions;
   private tuning: Tuning;
   private adminOpen = false;
@@ -57,7 +59,7 @@ export class SettingsPanel {
     this.o = options;
     this.tuning = structuredClone(options.tuning);
     this.toggleButton = el('button', { class: 'tool', type: 'button', 'aria-controls': 'spellbook', 'aria-expanded': 'false', onclick: () => this.toggle() }, 'Settings');
-    root.append(this.toggleButton, this.panel);
+    root.append(this.toggleButton, this.closeButton, this.panel);
     options.book.onChange(() => !this.panel.hidden && this.render());
     window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !this.panel.hidden) { e.stopImmediatePropagation(); this.toggle(false); } });
     window.addEventListener('keydown', (e) => this.trySecret(e), { capture: true });
@@ -67,6 +69,7 @@ export class SettingsPanel {
   toggle(open = this.panel.hidden): void {
     if (open && this.panel.hidden) this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     this.panel.hidden = !open;
+    this.closeButton.hidden = !open;
     this.toggleButton.setAttribute('aria-expanded', String(open));
     if (open) this.render();
     else { this.adminOpen = false; this.opener?.focus({ preventScroll: true }); this.opener = null; }
@@ -147,14 +150,14 @@ export class SettingsPanel {
   }
 
   private header(title: string): HTMLElement {
-    return el('header', {}, el('h2', {}, title), el('button', { class: 'close', type: 'button', 'aria-label': 'Close settings', onclick: () => this.toggle(false) }, '×'));
+    return el('header', {}, el('h2', {}, title));
   }
 
   private openAdmin(): void {
     this.adminOpen = true;
     this.toggle(true);
     this.panel.scrollTop = 0;
-    this.panel.querySelector<HTMLElement>('.close')?.focus();
+    this.closeButton.focus();
   }
 
   /** Typing the admin code anywhere outside a field unlocks spell assignment for this session. */

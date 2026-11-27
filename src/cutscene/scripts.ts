@@ -1,20 +1,20 @@
 import * as THREE from 'three';
 import { BRAMBLE_GOBLIN, LANTERN_WRAITH } from '../world/characters/spirits.ts';
 import { GLOOM_MOTH } from '../world/characters/creatures.ts';
-import { GRAEL, LANTERN_WIDOW, MOTH_MATRON, UNLIT_KING } from '../world/characters/bosses.ts';
+import { EGG, GRAEL, MOTH_MATRON, UNLIT_KING, WIDOW } from '../world/characters/bosses.ts';
 import { GNOME_DESIGNS } from '../world/GnomeSummons.ts';
 import type { Character } from '../world/rig/Character.ts';
 import { bump, smooth, TAU, type Anim } from '../world/rig/Rig.ts';
 import { terrainHeight } from '../world/spatial.ts';
 import { glowSprite } from '../world/vfx.ts';
-import { bloomkin, BLOOMKIN_COATS, butterflies, flowerField, hangingLantern, KINDLER_HANDS, lanternFlower, rootThrone, WARDEN } from './cast.ts';
+import { bloomkin, BLOOMKIN_COATS, butterflies, flowerField, KINDLER_HANDS, lanternFlower, rootThrone, WARDEN } from './cast.ts';
 import type { CameraKey, Script, Shot, V3 } from './Cutscene.ts';
 
 /**
  * THE STORY, IN SCENES
  * ────────────────────
  * You wake in the Hushwood not knowing how you came there or what is behind its silence. A gnome
- * called Tuck finds you. The Moth Matron, Grael the Rootwarden and the Lantern Widow each hoard the
+ * called Tuck finds you. The Moth Matron, Grael the Rootwarden and the Widow each hoard the
  * wood's stolen lights, and each gives them up when they fall. Visions tell of the Warden, who loved
  * the wood so much he swallowed every light to keep it safe, and became the Unlit King. At the end,
  * you learn what you are: the last light the wood had, made into a pair of hands.
@@ -428,9 +428,12 @@ const WARDEN_SCENE: Script = {
   },
 };
 
-/* ═══════════════════════════════════ THE LANTERN WIDOW ═══════════════════════════════════ */
+/* ═══════════════════════════════════ THE WIDOW ═══════════════════════════════════ */
 
-const WIDOW: Script = {
+// Her brood lies in the clearing: silk-wrapped eggs on the roots, each one listening.
+const BROOD: ReadonlyArray<readonly [number, number]> = [[-3.2, -7.5], [-2.4, -8.3], [2.8, -7.2], [3.6, -8.1], [-0.6, -6.4], [0.9, -6.9], [-5.4, -10], [5.1, -9.6]];
+
+const WIDOW_SCENE: Script = {
   id: 'widow', region: 'loom', duration: 27, mood: 'deeps',
   camera: [
     { t: 0, p: G(0, 1.6, 4), l: G(0, 8, -12), fov: 54 },
@@ -438,29 +441,31 @@ const WIDOW: Script = {
     { t: 16, p: G(0.8, 3.4, -4.5), l: G(0, 3.8, -10.5), fov: 36 },
     { t: 27, p: G(0, 1.85, 5), l: G(0, 3, -11), fov: 54 },
   ],
-  title: { at: 10, until: 16, name: 'The Lantern Widow', subtitle: 'She Who Keeps the Lost' },
+  title: { at: 10, until: 16, name: 'The Widow', subtitle: 'She Who Keeps the Brood' },
   lines: [
-    { at: 8.5, until: 12, speaker: 'The Lantern Widow', text: 'Shh. Don’t wake them.' },
-    { at: 12.5, until: 16.5, speaker: 'The Lantern Widow', text: 'Every lantern here holds someone the dark took.' },
-    { at: 17, until: 21, speaker: 'The Lantern Widow', text: 'I keep them. Someone must.' },
-    { at: 21.5, until: 26, speaker: 'The Lantern Widow', text: 'And you… you would look lovely in glass.' },
+    { at: 8.5, until: 12, speaker: 'The Widow', text: 'Shh. Don’t wake them.' },
+    { at: 12.5, until: 16.5, speaker: 'The Widow', text: 'Every one of them is listening for your step.' },
+    { at: 17, until: 21, speaker: 'The Widow', text: 'Their shells are thin. Mind where you put your feet.' },
+    { at: 21.5, until: 26, speaker: 'The Widow', text: 'Crack one, and I will teach you how the wood screams.' },
   ],
   build(s) {
-    s.actor('widow', LANTERN_WIDOW, 0, -11, 0, 12, 0.5);
-    const lanterns = [] as Array<ReturnType<typeof hangingLantern>>;
-    for (let i = 0; i < 22; i++) {
-      const h = hangingLantern(2 + (i % 4) * 0.8);
-      const x = -10 + (i % 8) * 2.8 + Math.sin(i) * 0.6, z = -18 + Math.floor(i / 8) * 5 + Math.cos(i * 2) * 1.2;
-      h.group.position.set(x, terrainHeight(x, z) + 7 + (i % 3), z);
-      s.add(h.group);
-      lanterns.push(h);
+    s.actor('widow', WIDOW, 0, -11, 0, 12, 0.5);
+    BROOD.forEach(([x, z], i) => s.actor(`egg${i}`, EGG, x, z, i * 1.3, 0, i * 0.17));
+    const silk = new THREE.MeshBasicMaterial({ color: '#cfc8ba', transparent: true, opacity: 0.35 });
+    // Long strands of silk hang out of the dark, swaying, where she has been.
+    const strands = [] as THREE.Mesh[];
+    for (let i = 0; i < 16; i++) {
+      const x = -9 + (i % 8) * 2.6 + Math.sin(i * 3) * 0.7, z = -16 + Math.floor(i / 8) * 4 + Math.cos(i * 2) * 1.2, len = 6 + (i % 3) * 2.5;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, len, 3).translate(0, -len / 2, 0), silk);
+      m.position.set(x, terrainHeight(x, z) + 6 + len, z);
+      strands.push(s.add(m));
     }
     const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1, 4).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: '#cfc8ba', transparent: true, opacity: 0.5 }));
     s.add(thread);
-    (s as Shot & { wl?: unknown }).wl = { lanterns, thread };
+    (s as Shot & { wl?: unknown }).wl = { strands, thread };
   },
   tick(s, t) {
-    const { lanterns, thread } = (s as Shot & { wl: { lanterns: Array<ReturnType<typeof hangingLantern>>; thread: THREE.Mesh } }).wl;
+    const { strands, thread } = (s as Shot & { wl: { strands: THREE.Mesh[]; thread: THREE.Mesh } }).wl;
     const height = 12 * (1 - smooth(1, 9, t));
     s.hover('widow', height);
     const w = s.get('widow');
@@ -470,8 +475,9 @@ const WIDOW: Script = {
     if (t > 12) s.travel('widow', [0, -11], [2.4, -10.6], 12, 18, false);
     if (t > 18) s.travel('widow', [2.4, -10.6], [-1.6, -10.8], 18, 24, false);
     s.face('widow', Math.atan2(-w.group.position.x, 4 - w.group.position.z));
-    s.act('widow', t > 21 ? 'windup' : 'idle', smooth(21, 24, t), 'lost');
-    lanterns.forEach((l, i) => { l.pivot.rotation.z = Math.sin(t * 0.8 + i) * 0.08; l.pivot.rotation.x = Math.cos(t * 0.6 + i * 1.3) * 0.06; l.set(0.25 + 0.15 * Math.sin(t * 2 + i * 3)); });
+    s.act('widow', t > 21 ? 'windup' : 'idle', smooth(21, 24, t), 'screech');
+    BROOD.forEach((_, i) => s.act(`egg${i}`, 'idle'));
+    strands.forEach((m, i) => { m.rotation.z = Math.sin(t * 0.7 + i) * 0.04; m.rotation.x = Math.cos(t * 0.5 + i * 1.3) * 0.03; });
   },
 };
 
@@ -483,33 +489,27 @@ const WIDOW_FALL: Script = {
     { t: 21, p: G(0, 1.2, 3), l: G(0, 16, -18), fov: 60 },
   ],
   lines: [
-    { at: 3, until: 7, text: 'One by one, the lanterns open.', kind: 'caption' },
-    { at: 8, until: 12, text: 'Every light she kept goes home.', kind: 'caption' },
+    { at: 3, until: 7, text: 'Her brood goes still in the silk.', kind: 'caption' },
+    { at: 8, until: 12, text: 'Whatever she stole to feed them drifts free.', kind: 'caption' },
     { at: 13.5, until: 18, text: 'The Deeps are a little less deep.', kind: 'caption' },
   ],
   build(s) {
-    s.actor('widow', LANTERN_WIDOW, 0, -11, 0, 0, 0.5);
-    const lanterns = [] as Array<{ h: ReturnType<typeof hangingLantern>; l: ReturnType<Shot['lumen']>; at: number }>;
+    s.actor('widow', WIDOW, 0, -11, 0, 0, 0.5);
+    BROOD.forEach(([x, z], i) => s.actor(`egg${i}`, EGG, x, z, i * 1.3, 0, i * 0.17));
     const colors = ['#ffd27a', '#9fe8ff', '#ffb3e6', '#d4ff9a', '#ffffff', '#c9a8ff'];
-    for (let i = 0; i < 18; i++) {
-      const h = hangingLantern(2 + (i % 4) * 0.7);
-      const x = -10 + (i % 6) * 4 + Math.sin(i) * 0.6, z = -20 + Math.floor(i / 6) * 5;
-      h.group.position.set(x, terrainHeight(x, z) + 7 + (i % 3), z);
-      s.add(h.group);
-      lanterns.push({ h, l: s.lumen(colors[i % colors.length], 0.4), at: 2 + i * 0.5 });
-    }
-    (s as Shot & { wf?: unknown }).wf = { lanterns };
+    const motes = BROOD.map(([x, z], i) => ({ from: s.at(x, z, 0.6), l: s.lumen(colors[i % colors.length], 0.4), at: 2 + i * 0.7 }));
+    (s as Shot & { wf?: unknown }).wf = { motes };
   },
   tick(s, t) {
     s.act('widow', 'dead', smooth(0.5, 6, t) * 0.999);
-    const { lanterns } = (s as Shot & { wf: { lanterns: Array<{ h: ReturnType<typeof hangingLantern>; l: ReturnType<Shot['lumen']>; at: number }> } }).wf;
-    for (const { h, l, at } of lanterns) {
+    const { motes } = (s as Shot & { wf: { motes: Array<{ from: THREE.Vector3; l: ReturnType<Shot['lumen']>; at: number }> } }).wf;
+    motes.forEach(({ from, l, at }, i) => {
+      s.act(`egg${i}`, 'idle');
+      s.get(`egg${i}`).overrides.dissolve = smooth(at, at + 1.5, t);
       const open = smooth(at, at + 0.6, t);
-      h.set(0.3 + open * 0.7 * (1 - smooth(at + 1, at + 2, t)));
-      const start = h.group.position.clone().setY(h.group.position.y - 2.6);
-      l.place(start.clone().add(new THREE.Vector3(Math.sin(t + at) * 1.5 * open, smooth(at + 0.6, at + 7, t) * 24, 0)));
+      l.place(from.clone().add(new THREE.Vector3(Math.sin(t + at) * 1.5 * open, smooth(at + 0.4, at + 7, t) * 24, 0)));
       l.sprite.material.opacity = open * (1 - smooth(at + 6, at + 8, t));
-    }
+    });
   },
 };
 
@@ -700,5 +700,5 @@ const ENDING: Script = {
 };
 
 export const SCRIPTS: Record<string, Script> = Object.fromEntries([
-  INTRO, TUCK, MATRON, MATRON_FALL, FLOWERS, GRAEL_SCENE, GRAEL_FALL, NAME, WARDEN_SCENE, WIDOW, WIDOW_FALL, KINDLER, KING, ENDING,
+  INTRO, TUCK, MATRON, MATRON_FALL, FLOWERS, GRAEL_SCENE, GRAEL_FALL, NAME, WARDEN_SCENE, WIDOW_SCENE, WIDOW_FALL, KINDLER, KING, ENDING,
 ].map((s) => [s.id, s]));

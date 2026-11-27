@@ -576,7 +576,7 @@ export class Regions {
           }
           supports.push(new THREE.CatmullRomCurve3(points.map((p)=>new THREE.Vector3(...p)), false, 'centripetal'));
         }
-        for (let i = 0; i < 26; i++) {
+        for (let i = 0; piece === 'bower' && i < 26; i++) {
           const p = supports[i % supports.length].getPoint(0.57 + Math.floor(i / 6) * 0.095), hang = 2.5 + rng() * 3;
           const g = new THREE.Group();
           g.position.copy(p);
