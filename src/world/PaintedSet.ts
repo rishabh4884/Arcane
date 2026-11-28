@@ -37,14 +37,14 @@ function slotUniforms() {
   return {
     tPaintA: { value: null as THREE.Texture | null }, tDepthA: { value: null as THREE.Texture | null }, uPaintVPA: { value: new THREE.Matrix4() }, uPaintCamA: { value: new THREE.Vector3() },
     tPaintB: { value: null as THREE.Texture | null }, tDepthB: { value: null as THREE.Texture | null }, uPaintVPB: { value: new THREE.Matrix4() }, uPaintCamB: { value: new THREE.Vector3() },
-    uMix: { value: 0 }, uDepthMax: { value: 400 },
+    uMix: { value: 0 }, uDepthMax: { value: 400 }, uShotGround: { value: 0 },
   };
 }
 type Slots = ReturnType<typeof slotUniforms>;
 
 function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color, tint: { value: THREE.Color }, time: { value: number }): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
-    defines: { SKY: surface === 'sky' ? 1 : 0, SWAY: surface === 'tree' ? 1 : 0 },
+    defines: { SKY: surface === 'sky' ? 1 : 0, SWAY: surface === 'tree' ? 1 : 0, GROUND: surface === 'ground' ? 1 : 0 },
     side: surface === 'sky' ? THREE.BackSide : THREE.FrontSide,
     depthWrite: surface !== 'sky', vertexColors: true,
     uniforms: { ...slots, uFallback: { value: fallback }, uTint: tint, uTime: time, ...SPELL_LIGHTS, ...INK, uAir: FIGURE_LIGHT.uAir },
@@ -75,7 +75,7 @@ function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color
     fragmentShader: /* glsl */`
       uniform sampler2D tPaintA; uniform sampler2D tDepthA; uniform mat4 uPaintVPA; uniform vec3 uPaintCamA;
       uniform sampler2D tPaintB; uniform sampler2D tDepthB; uniform mat4 uPaintVPB; uniform vec3 uPaintCamB;
-      uniform float uMix; uniform float uDepthMax; uniform vec3 uFallback; uniform vec3 uTint; uniform float uTime;
+      uniform float uMix; uniform float uDepthMax; uniform float uShotGround; uniform vec3 uFallback; uniform vec3 uTint; uniform float uTime;
       varying vec3 vRestWorld;
       varying vec3 vNormalW;
       varying vec3 vColor;
@@ -114,22 +114,43 @@ function projectedMaterial(slots: Slots, surface: Surface, fallback: THREE.Color
         return texture2D(tPaint, uv).rgb;
       }
       void main() {
-        float seenA, seenB;
-        vec3 a = project(tPaintA, tDepthA, uPaintVPA, uPaintCamA, seenA);
-        vec3 b = project(tPaintB, tDepthB, uPaintVPB, uPaintCamB, seenB);
-        float wA = (1.0 - uMix) * seenA, wB = uMix * seenB;
-        float w = wA + wB;
+        vec3 projected = vec3(0.0);
+        float w = 0.0;
+        #if GROUND
+        // Gameplay can turn through the sides of the original painting. The floor carries its own
+        // paint through those moves; authored cutscene shots still use their camera-matched art.
+        if (uShotGround > 0.001)
+        #endif
+        {
+          float seenA, seenB;
+          vec3 a = project(tPaintA, tDepthA, uPaintVPA, uPaintCamA, seenA);
+          vec3 b = project(tPaintB, tDepthB, uPaintVPB, uPaintCamB, seenB);
+          float wA = (1.0 - uMix) * seenA, wB = uMix * seenB;
+          w = wA + wB;
+          projected = (a * wA + b * wB) / max(w, 1e-4);
+        }
         #if SKY
           // Beyond every painting's frame the live sky shows through.
           if (w < 0.002) discard;
-          vec3 col = (a * wA + b * wB) / w * uTint;
+          vec3 col = projected * uTint;
         #else
           float light = dot(normalize(vNormalW), uFillDir) * 0.5 + 0.5;
           vec3 local = vColor * mix(uShadeColor, mix(uMidColor, uLitColor, smoothstep(0.72, 0.82, light)), smoothstep(0.4, 0.5, light));
+          #if GROUND
+            vec2 brush = vRestWorld.xz;
+            brush.x += brush.y * 0.21;
+            float patches = psNoise(brush * vec2(0.84, 0.58));
+            float marks = psNoise(brush * vec2(3.1, 0.96));
+            float detail = smoothstep(0.24, 0.76, patches) * 0.24 + smoothstep(0.66, 0.87, marks) * 0.11;
+            local = mix(local, vColor * (0.59 + detail + light * 0.27) + uAir * 0.19, 0.82);
+          #endif
           float air = (1.0 - exp(-max(length(vRestWorld - cameraPosition) - 8.0, 0.0) / 62.0)) * 0.92;
           local = mix(local, uAir, min(air, 0.88));
-          vec3 painted = w > 0.0 ? (a * wA + b * wB) / max(w, 1e-4) : local;
-          vec3 col = mix(local, painted, clamp(w * 8.0, 0.0, 1.0)) * uTint * cloudShade(vRestWorld);
+          float coverage = clamp(w * 8.0, 0.0, 1.0);
+          #if GROUND
+            coverage *= uShotGround;
+          #endif
+          vec3 col = mix(local, projected, coverage) * uTint * cloudShade(vRestWorld);
           col += col * spellIllumination(vRestWorld) * 1.2;
         #endif
         gl_FragColor = vec4(col, 1.0);
@@ -290,6 +311,7 @@ export class PaintedSet {
     if (this.slotA !== a) { s.tPaintA.value = a.paint; s.tDepthA.value = a.depth; s.uPaintVPA.value.copy(a.vp); s.uPaintCamA.value.copy(a.eye); this.slotA = a; }
     if (this.slotB !== b) { s.tPaintB.value = b.paint; s.tDepthB.value = b.depth; s.uPaintVPB.value.copy(b.vp); s.uPaintCamB.value.copy(b.eye); this.slotB = b; }
     s.uMix.value = mix;
+    s.uShotGround.value = (a === this.gameplay ? 0 : 1 - mix) + (b === this.gameplay ? 0 : mix);
   }
 
   /** Load a cutscene's own backgrounds (the shots its camera keys were painted for). */
