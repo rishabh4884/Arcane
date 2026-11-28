@@ -9,6 +9,7 @@ import { terrainHeight } from '../world/spatial.ts';
 import { glowSprite } from '../world/vfx.ts';
 import { bloomkin, BLOOMKIN_COATS, butterflies, flowerField, KINDLER_HANDS, lanternFlower, rootThrone, WARDEN } from './cast.ts';
 import type { CameraKey, Script, Shot, V3 } from './Cutscene.ts';
+import { BOSS_STORIES } from './bossStories.ts';
 
 /**
  * THE STORY, IN SCENES
@@ -211,6 +212,7 @@ const MATRON_FALL: Script = {
   ],
   build(s) {
     s.actor('matron', MOTH_MATRON, 0, -11, 0, 0.6, 0.5);
+    hands(s);
     s.actor('tuck', GNOME_DESIGNS.moss, -2.6, 7.8, 2.6, 0, 0.3).awaken(1.2);
     const colors = ['#ffd27a', '#9fe8ff', '#ffb3e6', '#d4ff9a', '#ffffff'];
     (s as Shot & { lights?: unknown }).lights = colors.map((c) => s.lumen(c, 0.45));
@@ -227,6 +229,15 @@ const MATRON_FALL: Script = {
       l.sprite.material.opacity = smooth(3.3, 4, t) * (1 - smooth(14, 16, t));
       if (t > 3.5 && t < 4.6) s.stage.light(cage, new THREE.Color('#ffe2a8'), 8, 0.4, 14);
     });
+    s.act('hands', 'strike', smooth(15, 18.2, t));
+    if (t > 15) {
+      const veil = lights[0];
+      const received = smooth(15, 19.6, t);
+      const arrival = s.camera.localToWorld(new THREE.Vector3(0.14, -0.11, -0.5));
+      veil.place(cage.clone().lerp(arrival, received).add(new THREE.Vector3(-Math.sin(t * 2) * Math.sin(received * Math.PI), 0.55 * Math.sin(received * Math.PI), 0)));
+      veil.sprite.material.opacity = bump(15, 20.6, t);
+      veil.trail.opacity = veil.sprite.material.opacity;
+    }
     s.act('tuck', t < 12 ? 'stagger' : 'idle', Math.min(1, (t - 11) / 1.2));
     s.look('tuck', v(G(0, 6, -30)));
     if (t > 16) { s.look('tuck', s.camera.position); const a = s.actors.get('tuck'); if (a) a.input.extra = (an) => an.rig.rot('shoulderR', -1.6 * bump(16, 20, t)).rot('elbowR', -0.2); }
@@ -345,7 +356,7 @@ const GRAEL_FALL: Script = {
 /* ═══════════════════════════════════ VISIONS OF THE WARDEN ═══════════════════════════════════ */
 
 const NAME: Script = {
-  id: 'name', region: 'deeps', duration: 21, mood: 'deeps',
+  id: 'name', region: 'deeps', duration: 21, mood: 'deeps', memory: true,
   camera: [
     { t: 0, p: G(0, 2.2, 14), l: G(0, 3, 6), fov: 46 },
     { t: 9, p: G(0, 2.4, 12), l: G(0, 3, 0), fov: 50 },
@@ -353,9 +364,9 @@ const NAME: Script = {
   ],
   lines: [
     { at: 2, until: 6, text: 'Before it rose, the Star-Heart whispered.', kind: 'caption' },
-    { at: 7, until: 10.2, text: '“Warden.”', kind: 'whisper' },
-    { at: 11, until: 15, text: 'He kept this wood once, when every lantern-flower burned.', kind: 'caption' },
-    { at: 15.5, until: 20, text: 'He loved it more than anything in the world.', kind: 'caption' },
+    { at: 7, until: 10.2, text: '“Elder Rowan.”', kind: 'whisper' },
+    { at: 11, until: 15, text: 'He came here on a morning when every lantern-flower burned.', kind: 'caption' },
+    { at: 15.5, until: 20, text: 'The forest gave him a home. He never left.', kind: 'caption' },
   ],
   build(s) {
     const w = s.actor('warden', WARDEN, 0, -6, 0, 0, 0.4);
@@ -393,7 +404,7 @@ const WARDEN_SCENE: Script = {
     { at: 7, until: 11, text: 'So he gathered them. Every one. To keep them safe.', kind: 'caption' },
     { at: 13, until: 17, text: 'And the more he kept, the colder the wood became.', kind: 'caption' },
     { at: 19, until: 23, text: 'Until nothing shone at all, except him.', kind: 'caption' },
-    { at: 25, until: 29.5, text: 'The Unlit King.', kind: 'whisper' },
+    { at: 25, until: 29.5, text: 'Rowan Hollowheart.', kind: 'whisper' },
   ],
   build(s) {
     const w = s.actor('warden', WARDEN, -10, -6, Math.PI / 2, 0, 0.4);
@@ -516,7 +527,7 @@ const WIDOW_FALL: Script = {
 /* ═══════════════════════════════════ THE KINDLER ═══════════════════════════════════ */
 
 const KINDLER: Script = {
-  id: 'kindler', region: 'origin', duration: 31, mood: 'throne',
+  id: 'kindler', region: 'origin', duration: 31, mood: 'throne', memory: true,
   camera: [
     { t: 0, p: G(0, 1.1, 15.6), l: G(0, 0.6, 13), fov: 42 },
     { t: 9, p: G(0, 1.4, 16.4), l: G(0, 0.8, 13), fov: 48 },
@@ -571,13 +582,10 @@ const KING: Script = {
     { t: 22, p: G(0.4, 5.2, -9.4), l: G(0, 6.6, -15), fov: 34 },
     { t: 31, p: G(0, 1.85, 6), l: G(0, 6, -16), fov: 58 },
   ],
-  title: { at: 16, until: 22, name: 'The Unlit King', subtitle: 'Who Swallowed Every Light' },
+  title: { at: 16, until: 22, name: 'Rowan Hollowheart', subtitle: 'Who Swallowed Every Light' },
   lines: [
-    { at: 4, until: 8, speaker: 'The Unlit King', text: 'So. The last of them.' },
-    { at: 9, until: 13, speaker: 'The Unlit King', text: 'Do you know how cold it is, to watch a light go out?' },
-    { at: 14.5, until: 18.5, speaker: 'The Unlit King', text: 'I kept them. All of them. So none would ever go out again.' },
-    { at: 19.5, until: 23.5, speaker: 'The Unlit King', text: 'I will not watch you go out, little light.' },
-    { at: 24, until: 29.5, speaker: 'The Unlit King', text: 'Come here. Let me keep you safe. Forever.' },
+    { at: 4, until: 8, speaker: 'Rowan Hollowheart', text: 'So. The last of them.' },
+    { at: 14.5, until: 18.5, text: 'The light in his chest is warm. The air around it is bitter cold.', kind: 'caption' },
   ],
   build(s) {
     const throne = rootThrone();
@@ -615,9 +623,9 @@ const ENDING: Script = {
   ],
   title: { at: 42, until: 48, name: 'The Hushwood Is Free', subtitle: 'Arcane' },
   lines: [
-    { at: 3, until: 7, speaker: 'The Unlit King', text: '…so warm.' },
+    { at: 3, until: 7, speaker: 'Rowan Hollowheart', text: '…so warm.' },
     { at: 8.5, until: 11.2, text: 'Every light, let go.', kind: 'caption' },
-    { at: 12.5, until: 16.5, speaker: 'The Warden', text: 'Thank you. I was so afraid of the dark.' },
+    { at: 12.5, until: 16.5, speaker: 'Elder Rowan', text: 'Thank you. I was so afraid of the dark.' },
     { at: 19, until: 23, text: 'The Hushwood remembers its colours.', kind: 'caption' },
     { at: 25, until: 28.6, speaker: 'Tuck', text: 'Look at it! LOOK at it!' },
     { at: 31, until: 35, text: 'Every lantern-flower is open. Every light is home.', kind: 'caption' },
@@ -701,4 +709,5 @@ const ENDING: Script = {
 
 export const SCRIPTS: Record<string, Script> = Object.fromEntries([
   INTRO, TUCK, MATRON, MATRON_FALL, FLOWERS, GRAEL_SCENE, GRAEL_FALL, NAME, WARDEN_SCENE, WIDOW_SCENE, WIDOW_FALL, KINDLER, KING, ENDING,
+  ...BOSS_STORIES,
 ].map((s) => [s.id, s]));

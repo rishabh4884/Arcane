@@ -22,6 +22,7 @@ const SKIP_ALL = typeof location !== 'undefined' && ((p) => p.has('nocutscenes')
 
 export type V3 = readonly [number, number, number];
 export interface Line { at: number; until: number; text: string; speaker?: string; kind?: 'whisper' | 'voice' | 'caption' }
+export type StorySound = 'vision' | 'bell' | 'strain' | 'speech';
 export interface CameraKey { t: number; p: V3; l: V3; fov?: number; ease?: 'inOut' | 'linear' | 'out' | 'in' }
 export interface Script {
   id: string;
@@ -29,6 +30,8 @@ export interface Script {
   mood: Mood;
   /** The place it is staged in (see world/regions.ts). */
   region?: string;
+  memory?: boolean;
+  sounds?: Array<{ at: number; kind: StorySound }>;
   /** Mood to settle into while it plays (the ending turns to dawn). */
   toMood?: { mood: Mood; at: number; seconds: number };
   lines: Line[];
@@ -52,6 +55,7 @@ export class Shot {
   readonly actors = new Map<string, ActorState>();
   readonly trails: Trail[] = [];
   private readonly disposers: Array<() => void> = [];
+  private readonly cues = new Set<string>();
   private readonly lookAt = new THREE.Vector3();
   t = 0;
 
@@ -120,6 +124,11 @@ export class Shot {
 
   add<T extends THREE.Object3D>(object: T): T { this.root.add(object); return DRAWN_LOOK ? drawn(object) : object; }
   onDispose(fn: () => void): void { this.disposers.push(fn); }
+  cue(key: string, run: () => void): void {
+    if (this.cues.has(key)) return;
+    this.cues.add(key);
+    run();
+  }
 
   /** Interpolate the camera through its keys. */
   camera_(keys: readonly CameraKey[], t: number): void {
@@ -176,7 +185,8 @@ export class CutscenePlayer {
   /** Ends the scene that is playing (Skip, Escape). */
   private finishNow: (() => void) | null = null;
 
-  constructor(private readonly world: World, private readonly onUi?: (kind: 'select' | 'story') => void) {
+  constructor(private readonly world: World, private readonly onUi?: (kind: 'select' | 'story') => void,
+    private readonly onSound?: (kind: StorySound) => void) {
     this.el.className = 'cutscene';
     this.el.hidden = true;
     this.el.setAttribute('aria-live', 'polite');
@@ -209,11 +219,18 @@ export class CutscenePlayer {
 
   get active(): boolean { return this.playing; }
 
-  play(script: Script): Promise<void> {
+  async play(script: Script): Promise<void> {
     if (this.playing) return Promise.resolve();
     // `?nocutscenes` (and benchmark runs) go straight from level to level.
     if (SKIP_ALL) return Promise.resolve();
     this.playing = true;
+    if (script.memory) {
+      document.body.classList.add('vision-onset');
+      this.world.shake(0.65);
+      this.onSound?.('vision');
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 950));
+      document.body.classList.remove('vision-onset');
+    }
     document.body.classList.add('is-cutscene');
     this.el.hidden = false;
     this.el.dataset.scene = script.id;
@@ -263,14 +280,18 @@ export class CutscenePlayer {
         // After the end the scene keeps breathing (actors idle, camera holds) until you move on.
         shot.t = Math.min(shot.t + dt, script.duration + 30);
         const t = Math.min(shot.t, script.duration);
-        script.tick(shot, t, dt);
         shot.camera_(script.camera, t);
+        script.tick(shot, t, dt);
         shot.update(dt);
+        script.sounds?.forEach(({ at, kind }, i) => {
+          if (t >= at) shot.cue(`sound-${i}`, () => this.onSound?.(kind));
+        });
         if (script.toMood && t >= script.toMood.at && !shownLines.has(-1)) { shownLines.add(-1); stage.setMood(script.toMood.mood, script.toMood.seconds); }
         // Words.
         script.lines.forEach((line, i) => {
           if (t >= line.at && t < line.until && !shownLines.has(i)) {
             shownLines.add(i);
+            if (line.kind === 'whisper') this.onSound?.('speech');
             const p = document.createElement('p');
             p.className = `cut-line cut-line--${line.kind ?? 'voice'}`;
             if (line.speaker) { const s = document.createElement('span'); s.className = 'cut-speaker'; s.textContent = line.speaker; p.append(s); }

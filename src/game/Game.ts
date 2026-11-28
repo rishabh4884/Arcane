@@ -54,7 +54,7 @@ export class Game {
     deps.book.setLearned(this.progress.learned);
     this.loading = new LoadingScreen(() => this.enter(), ui);
     this.menu = new MenuScreen({
-      onContinue: () => this.playLevel(this.progress.freed ? LEVELS[LEVELS.length - 1] : this.progress.frontier),
+      onContinue: () => this.playLevel(this.progress.frontier),
       onNew: () => this.playLevel(LEVELS[0]),
       onJourney: () => this.openJourney(),
       onGrimoire: () => this.openGrimoire('menu'),
@@ -72,7 +72,7 @@ export class Game {
     }, ui);
     this.result = new ResultScreen(ui);
     this.hud = new GameHud(deps.hudRoot, () => this.pauseGame());
-    this.cutscenes = new CutscenePlayer(deps.world, ui);
+    this.cutscenes = new CutscenePlayer(deps.world, ui, (kind) => deps.audio.storySound(kind));
     this.setBody('loading');
     deps.world.setAmbient(true);
     deps.world.setMood(this.progress.freed ? 'dawn' : 'edge', 0.01);
@@ -189,11 +189,14 @@ export class Game {
   private async playLevel(level: LevelDef): Promise<void> {
     this.hideScreens();
     this.hud.hide();
-    if (level.before && SCRIPTS[level.before]) {
+    const opening = [...(level.visions ?? []), ...(level.before ? [level.before] : [])];
+    if (opening.length) {
       this.setBody('cutscene');
       this.deps.world.stopLevel();
-      await this.cutscenes.play(SCRIPTS[level.before]);
-      this.progress.markSeen(level.before);
+      for (const scene of opening) {
+        await this.cutscenes.play(SCRIPTS[scene]);
+        this.progress.markSeen(scene);
+      }
     }
     this.startLevel(level);
   }
@@ -276,10 +279,8 @@ export class Game {
     }
     const stats = this.deps.world.snapshot().stats;
     this.hud.show(level.kind === 'normal' ? 'The wood quiets' : level.kind === 'final' ? 'The ruler falls' : 'The great one is released', '', 2.6);
-    const outcome = this.progress.complete(level, stats.time, stats.damageTaken);
-    this.deps.book.setLearned(this.progress.learned);
     await wait(2600);
-    if (level.after && SCRIPTS[level.after] && (outcome.firstTime || level.after === 'ending')) {
+    if (level.after && SCRIPTS[level.after] && (!this.progress.hasSeen(level.after) || level.after === 'ending')) {
       this.hud.hide();
       this.deps.world.stopLevel();
       this.setBody('cutscene');
@@ -287,6 +288,8 @@ export class Game {
       this.progress.markSeen(level.after);
       if (level.after === 'ending') { this.deps.world.setMood('dawn', 0.01); this.deps.world.setRegion('dawn'); }
     }
+    const outcome = this.progress.complete(level, stats.time, stats.damageTaken);
+    this.deps.book.setLearned(this.progress.learned);
     this.hud.hide();
     this.deps.world.stopLevel();
     this.deps.world.setAmbient(true);

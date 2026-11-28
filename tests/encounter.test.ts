@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { GESTURES } from '../src/config/gestures.ts';
 import { LEGEND_SPELLS, SPELLS } from '../src/config/spells.ts';
 import { CHAPTERS, LEVELS, trialLevel } from '../src/game/campaign.ts';
+import { SCRIPTS } from '../src/cutscene/scripts.ts';
 import { SpellBook } from '../src/spells/SpellBook.ts';
 import { DESIGNS } from '../src/world/characters/index.ts';
 import { CREATURE_SPECS, CreatureState, PlayerState, type CreatureKind } from '../src/world/EncounterState.ts';
@@ -139,36 +140,44 @@ describe('character trials', () => {
 });
 
 describe('the campaign', () => {
-  it('has forty levels in four chapters of ten', () => {
-    expect(LEVELS).toHaveLength(40);
+  it('has forty-eight consecutive levels in four reaches', () => {
+    expect(LEVELS.map((level) => level.id)).toEqual(Array.from({ length: 48 }, (_, i) => i + 1));
     expect(CHAPTERS).toHaveLength(4);
-    for (const c of CHAPTERS) expect(LEVELS.filter((l) => l.chapter === c.id)).toHaveLength(10);
+    expect(CHAPTERS.map((c) => LEVELS.filter((l) => l.chapter === c.id).length)).toEqual([11, 11, 11, 15]);
   });
-  it('puts a sub-boss after eight levels and a final boss at the end of every chapter', () => {
+  it('puts a roaming boss before each finale, with four levels beyond the Herald', () => {
     for (const c of CHAPTERS) {
       const levels = LEVELS.filter((l) => l.chapter === c.id);
-      expect(levels.slice(0, 8).every((l) => l.kind === 'normal' && !l.boss)).toBe(true);
-      expect(levels[8].kind).toBe('sub');
-      expect(CREATURE_SPECS[levels[8].boss!].rank).toBe('sub');
-      expect(levels[9].kind).toBe('final');
-      expect(CREATURE_SPECS[levels[9].boss!].rank).toBe('final');
-      // A cutscene introduces each ruler before its fight.
-      expect(levels[9].before).toBeTruthy();
+      const sub = levels.filter((l) => l.kind === 'sub');
+      const final = levels[levels.length - 1];
+      expect(sub).toHaveLength(1);
+      expect(CREATURE_SPECS[sub[0].boss!].rank).toBe('sub');
+      expect(final.kind).toBe('final');
+      expect(CREATURE_SPECS[final.boss!].rank).toBe('final');
+      expect(final.id - sub[0].id).toBe(c.id === 4 ? 5 : 1);
     }
   });
   it('gives every non-final level three waves that grow harder', () => {
     const threat = (k: CreatureKind) => CREATURE_SPECS[k].health;
     for (const level of LEVELS.filter((l) => l.kind !== 'final')) {
-      expect(level.waves).toHaveLength(3);
+      expect(level.waves).toHaveLength(level.boss === 'herald' ? 1 : 3);
       for (const wave of level.waves) expect(wave.reduce((s, g) => s + g.count, 0)).toBeGreaterThan(0);
       const totals = level.waves.map((w) => w.reduce((s, g) => s + g.count * threat(g.kind), 0));
-      expect(totals[2]).toBeGreaterThanOrEqual(totals[0]);
+      expect(totals[totals.length - 1]).toBeGreaterThanOrEqual(totals[0]);
     }
   });
-  it('tells its story every seven levels and at every boss', () => {
-    for (const id of [7, 14, 21, 28, 35]) expect(LEVELS[id - 1].after).toBeTruthy();
-    expect(LEVELS[0].before).toBe('intro');
-    expect(LEVELS[39].after).toBe('ending');
+  it('links story cues to scenes and spells to their acquisitions', () => {
+    for (const level of LEVELS) {
+      for (const id of [...(level.visions ?? []), level.before, level.after]) {
+        if (id) expect(SCRIPTS[id], id).toBeDefined();
+      }
+      for (const id of level.visions ?? []) expect(SCRIPTS[id].memory).toBe(true);
+      if (!level.reward) continue;
+      expect(level.after).toBeTruthy();
+      expect(SPELLS.find((s) => s.id === level.reward)?.learnedAt).toBe(level.id);
+    }
+    expect(LEVELS[47].after).toBe('ending');
+    expect(LEVELS.filter((l) => l.chapter > 1).every((l) => l.waves.flat().every((g) => g.kind !== 'goblin'))).toBe(true);
   });
   it('hands out every legendary spell from a boss, and only from a boss', () => {
     const rewards = LEVELS.filter((l) => l.reward).map((l) => l.reward);

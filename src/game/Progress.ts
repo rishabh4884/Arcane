@@ -1,7 +1,7 @@
 import { loadJSON, saveJSON } from '../storage.ts';
 import { LEVELS, type LevelDef } from './campaign.ts';
 
-const KEY = 'arcane.journey.v1';
+const KEY = 'arcane.journey.v2';
 
 export interface LevelRecord { time: number; damageTaken: number; stars: number }
 interface SaveData { completed: Record<number, LevelRecord>; learned: string[]; seen: string[]; freed: boolean; last: number }
@@ -15,13 +15,16 @@ export class Progress {
   private readonly listeners = new Set<() => void>();
 
   constructor() {
-    const saved = loadJSON<Partial<SaveData>>(KEY);
+    const current = loadJSON<Partial<SaveData>>(KEY);
+    const saved = current ?? loadJSON<Partial<SaveData>>('arcane.journey.v1');
+    const completed = saved?.completed && typeof saved.completed === 'object' ? saved.completed : {};
     this.data = {
-      completed: saved?.completed && typeof saved.completed === 'object' ? saved.completed : {},
+      completed: current ? completed : Object.fromEntries(LEVELS.flatMap(({ id, legacyId }) =>
+        legacyId && completed[legacyId] ? [[id, completed[legacyId]]] : [])),
       learned: Array.isArray(saved?.learned) ? saved!.learned : [],
       seen: Array.isArray(saved?.seen) ? saved!.seen : [],
       freed: saved?.freed === true,
-      last: typeof saved?.last === 'number' ? saved.last : 1,
+      last: (current ? saved?.last : LEVELS.find((level) => level.legacyId === saved?.last && saved?.last !== undefined)?.id) ?? 1,
     };
   }
 
@@ -35,7 +38,7 @@ export class Progress {
   isComplete(id: number): boolean { return Boolean(this.data.completed[id]); }
   record(id: number): LevelRecord | undefined { return this.data.completed[id]; }
   /** A level is open once the one before it is won. */
-  isUnlocked(id: number): boolean { return id === 1 || this.isComplete(id - 1); }
+  isUnlocked(id: number): boolean { return id === 1 || this.isComplete(id) || this.isComplete(id - 1); }
 
   /** The first level not yet won (where Continue goes). */
   get frontier(): LevelDef {

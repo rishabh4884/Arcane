@@ -139,7 +139,7 @@ export const CREATURE_SPECS: Record<CreatureKind, CreatureSpec> = {
     ] }),
   egg: spec({ name: 'Widow’s Egg', rank: 'normal', role: 'melee', health: 5, speed: 0, radius: 0.55, height: 1.15,
     attacks: [{ id: 'none', type: 'melee', range: [0, 0], windup: 1, recovery: 1, damage: 0 }] }),
-  king: spec({ name: 'The Unlit King', title: 'Who Swallowed Every Light', rank: 'final', role: 'boss', health: 5000, speed: 0.5, radius: 2.3, height: 9.2,
+  king: spec({ name: 'Rowan Hollowheart', title: 'Who Swallowed Every Light', rank: 'final', role: 'boss', health: 5000, speed: 0.5, radius: 2.3, height: 9.2,
     attacks: [
       { id: 'hands', type: 'spikes', range: [0, 50], windup: 1.7, recovery: 2.2, damage: 22, weight: 3 },
       { id: 'darkstars', type: 'stars', range: [0, 60], windup: 2.0, recovery: 2.4, damage: 9, weight: 3, count: 7, cooldown: 4, sight: false },

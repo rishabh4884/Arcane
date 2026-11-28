@@ -5,7 +5,7 @@ import { INK } from './render/InkPaint.ts';
 import { MIST_TINT } from './LanternLighting.ts';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { butterflies, flowerField, hangingLantern, lanternFlower, rootThrone } from '../cutscene/cast.ts';
-import type { LevelDef, Mood } from '../game/campaign.ts';
+import { LEVELS, type LevelDef, type Mood } from '../game/campaign.ts';
 import type { ForestEnvironment } from './ForestEnvironment.ts';
 import type { ParticleSystem } from './particles.ts';
 import { ellipsoid, fbm3, lathe, mulberry, tube, type V3 } from './rig/Body.ts';
@@ -38,7 +38,8 @@ const SETS: Partial<Record<number, SetPiece>> = {
 const CHAPTER_REGION: Record<number, RegionKey> = { 1: 'edge', 2: 'fen', 3: 'deeps', 4: 'throne' };
 
 export function regionFor(level: LevelDef): RegionSpec {
-  return { key: CHAPTER_REGION[level.chapter], depth: (level.index - 1) / 9, set: SETS[level.id], seed: level.id * 7919 };
+  const last = LEVELS.find((candidate) => candidate.chapter === level.chapter && candidate.kind === 'final')!.index;
+  return { key: CHAPTER_REGION[level.chapter], depth: (level.index - 1) / (last - 1), set: SETS[level.legacyId ?? 0], seed: level.id * 7919 };
 }
 
 /** Regions for cutscenes and the menu, by name. */
@@ -49,6 +50,9 @@ export function namedRegion(name: string): RegionSpec {
     deeps: { key: 'deeps', depth: 0.3, seed: 21 }, loom: { key: 'deeps', depth: 1, set: 'loom', seed: 30 },
     origin: { key: 'throne', depth: 0.4, set: 'origin', seed: 35 }, throne: { key: 'throne', depth: 1, set: 'throne', seed: 40 },
     dawn: { key: 'dawn', depth: 0, seed: 41 },
+    bellfields: { key: 'throne', depth: 0.63, set: 'bellfields', seed: 39 },
+    antlerhall: { key: 'deeps', depth: 0.85, set: 'antlerhall', seed: 29 },
+    coils: { key: 'fen', depth: 0.9, set: 'coils', seed: 19 },
   };
   return sets[name] ?? sets.edge;
 }

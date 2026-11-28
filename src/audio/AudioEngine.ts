@@ -389,6 +389,18 @@ export class AudioEngine {
     this.noise({ filter: 'lowpass', freq: 180, brown: true, decay: 0.8, gain: 0.3 });
   }
 
+  storySound(kind: import('../cutscene/Cutscene.ts').StorySound): void {
+    if (!this.ctx) return;
+    if (kind === 'bell') { this.toll(); return; }
+    if (kind === 'strain') { this.roar('king', 0, 1.2); return; }
+    if (kind === 'speech') {
+      this.noise({ filter: 'bandpass', freq: 1500, freqEnd: 600, q: 3, attack: 0.11, decay: 0.83, gain: 0.095, reverb: 0.6 });
+      return;
+    }
+    this.tone({ type: 'sine', freq: 880, freqEnd: 2810, attack: 0.32, decay: 0.51, gain: 0.045, vibrato: { rate: 13, depth: 95 } });
+    this.noise({ filter: 'lowpass', freq: 320, attack: 0.12, decay: 0.7, gain: 0.15, brown: true, reverb: 0.8 });
+  }
+
   /** Interface sounds: a soft tick for hovering, a woody knock for choosing. */
   ui(kind: 'hover' | 'select' | 'back' | 'unlock' | 'story' | 'ready'): void {
     if (!this.ctx) return;

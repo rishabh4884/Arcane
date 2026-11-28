@@ -171,6 +171,10 @@
 .hud-dialogue[hidden] { display: none; }
 .hud-dialogue span { color: var(--lantern-hot); font: 600 .72rem var(--sans); }
 .hud-dialogue p { margin: .25rem 0; }
+.vision-onset::after { content: ''; position: fixed; inset: 0; z-index: 999; pointer-events: none; background: radial-gradient(ellipse at center, #e1dbef18, #220e35d6 73%, #050408 100%); animation: vision-onset .95s ease-in forwards; }
+@keyframes vision-onset { 0% { opacity: 0; } 29% { opacity: .72; } 58% { opacity: .32; } 100% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .vision-onset::after { animation-name: vision-fade; } }
+@keyframes vision-fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes banner { 0% { opacity: 0; letter-spacing: 0.3em; filter: blur(6px); } 15% { opacity: 1; letter-spacing: 0.02em; filter: blur(0); } 78% { opacity: 1; } 100% { opacity: 0; } }
 .hud-banner h2 { margin: 0; font: italic 600 clamp(2.2rem, 6vw, 4rem)/1 var(--serif); text-shadow: 0 0 30px rgba(255, 217, 160, 0.45), 0 4px 24px rgba(0, 0, 0, 0.9); }
 .hud-banner p { margin: 0.5rem 0 0; color: var(--lantern); font: 600 0.8rem var(--sans); letter-spacing: 0.22em; text-transform: uppercase; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9); }

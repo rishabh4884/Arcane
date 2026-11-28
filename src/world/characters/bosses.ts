@@ -863,10 +863,10 @@ export const WIDOW: Design = {
 
 /* ═════════════════════════════════ THE UNLIT KING ═════════════════════════════════ */
 
-const NIGHT = '#15131b', NIGHT_EDGE = '#2c2836', KING_BARK = '#5b4c3f';
+const NIGHT = '#14121c', NIGHT_EDGE = '#2c2836', KING_BARK = '#9e9383';
 
 export const UNLIT_KING: Design = {
-  kind: 'king', name: 'The Unlit King', height: 9.2, radius: 2.3, turnRate: 0.8, stride: 4.4, pace: 0.5,
+  kind: 'king', name: 'Rowan Hollowheart', height: 9.2, radius: 2.3, turnRate: 0.8, stride: 4.4, pace: 0.5,
   eye: '#ffe7a3', eyeAngry: '#ffffff', edge: '#ffe7a3', mist: 1.2,
   cloth: [0.22, 5.8, 0.0, 0.4],
   stiffness: { hips: 5, spine: 5, chest: 5, neck: 5, head: 4.5, antlerL: 5, antlerR: 5, cape1: 3, cape2: 2.5, shoulderL: 5, shoulderR: 5, elbowL: 5.5, elbowR: 5.5 },
@@ -875,8 +875,8 @@ export const UNLIT_KING: Design = {
   animate: kingAnimate,
 };
 
-interface RegalLook { cloak: string; cloakDark: string; edge: string; mask: string; crown: 'lanterns' | 'leaves'; stars: boolean }
-const KING_LOOK: RegalLook = { cloak: NIGHT, cloakDark: '#07060a', edge: NIGHT_EDGE, mask: KING_BARK, crown: 'lanterns', stars: true };
+interface RegalLook { cloak: string; cloakDark: string; edge: string; mask: string; crown: 'iron' | 'leaves'; stars: boolean }
+const KING_LOOK: RegalLook = { cloak: NIGHT, cloakDark: '#07060a', edge: NIGHT_EDGE, mask: KING_BARK, crown: 'iron', stars: true };
 /** The Warden as he was: green and gold, a crown of leaves, the same antlers. */
 export const WARDEN_LOOK: RegalLook = { cloak: '#35523a', cloakDark: '#16241a', edge: '#5f7f52', mask: '#6b5038', crown: 'leaves', stars: false };
 
@@ -1048,7 +1048,7 @@ export function buildRegal(b: Body, look: RegalLook): void {
     }
     b.part(tube([[-0.05, 7.56, 0.78], [0.05, 7.56, 0.78]], [0.006], { radial: 5 }), { color: '#ffd27a', surface: 'glow', glow: 0.3, bones: ['head'] });
 
-    // ── The crown: a circlet of iron seated on the brow, its prongs hung with lanterns gone dark. ──
+    // Rowan's old circlet is still seated on the brow.
     const m = new Sculpt();
     const iron = { color: '#3a3128', shade: '#1a1612', surface: 'metal' as const, relief: 0.002, reliefFreq: 60, bones: ['head'] as string[] };
     const ring: V3[] = [];
@@ -1066,15 +1066,9 @@ export function buildRegal(b: Body, look: RegalLook): void {
     } else {
       for (const k of [2, 5, 9, 14, 19, 23, 26]) {
         const p = ring[k], out = Math.hypot(p[0], p[2] - 0.4) || 1, ox = p[0] / out, oz = (p[2] - 0.4) / out;
-        const tip: V3 = [p[0] + ox * 0.12, p[1] + 0.32, p[2] + oz * 0.12], hook: V3 = [tip[0] + ox * 0.08, tip[1] + 0.02, tip[2] + oz * 0.08];
-        m.chain([p, [p[0] + ox * 0.04, p[1] + 0.18, p[2] + oz * 0.04], tip, hook], [0.022, 0.017, 0.013, 0.012], { ...iron, blend: 0.012 });
-        // The lantern hangs from the hook: a cap, four bars, a base, dead glass inside.
-        const c: V3 = [hook[0], hook[1] - 0.17, hook[2]];
-        m.cone([c[0], c[1] + 0.13, c[2]], [c[0], c[1] + 0.08, c[2]], 0.014, 0.06, { ...iron, blend: 0.008 });
-        m.box([c[0], c[1] - 0.075, c[2]], [0.055, 0.012, 0.055], 0.008, { ...iron, blend: 0.006 });
-        for (const [bx, bz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) m.cone([c[0] + bx * 0.042, c[1] + 0.075, c[2] + bz * 0.042], [c[0] + bx * 0.042, c[1] - 0.07, c[2] + bz * 0.042], 0.012, 0.012, { ...iron, blend: 0.006 });
-        m.chain([[hook[0], hook[1], hook[2]], [c[0], c[1] + 0.14, c[2]]], [0.008, 0.008], { ...iron, blend: 0.004 });
-        b.part(ellipsoid(c, [0.034, 0.06, 0.034]), { color: '#3a2418', shade: '#1a100c', surface: 'glow', glow: 0.06, bones: ['head'] });
+        const height = 0.12 + (k % 4) * 0.045;
+        const tip: V3 = [p[0] + ox * 0.11, p[1] + height, p[2] + oz * 0.11];
+        m.chain([p, [p[0] + ox * 0.04, p[1] + height * 0.62, p[2] + oz * 0.04], tip], [0.022, 0.017, 0.007], { ...iron, blend: 0.012 });
       }
     }
     // A clasp of old gold closing the sash.

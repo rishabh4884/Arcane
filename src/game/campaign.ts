@@ -3,9 +3,8 @@ import { CREATURE_SPECS, NO_SCALING, type CreatureKind, type Scaling } from '../
 /**
  * THE JOURNEY
  * ───────────
- * Forty levels in four chapters. Each chapter is eight levels of three waves, a ninth where a
- * sub-boss comes alone after the last wave, and a tenth where the chapter's ruler waits, introduced
- * by a cutscene. Every seventh level ends with a piece of the story; every boss but the last surrenders a spell.
+ * Forty-eight levels across four reaches. Each reach has its own inhabitants, a wandering
+ * guardian and a final boss. The Bellfields give way to a deeper stretch of forest after the Herald.
  */
 
 export type Mood = 'edge' | 'fen' | 'deeps' | 'throne' | 'dawn';
@@ -21,13 +20,13 @@ export interface ChapterDef {
 
 export const CHAPTERS: readonly ChapterDef[] = [
   { id: 1, numeral: 'I', name: 'The Hushed Edge', subtitle: 'Where you woke', mood: 'edge',
-    blurb: 'Mossy outskirts, cold lanterns, and things that watch from the ferns.' },
+    blurb: 'Hungry bramble thieves haunt the paths to an abandoned market. Beyond it, the Matron guards the last sheltered lights.' },
   { id: 2, numeral: 'II', name: 'The Mirefen', subtitle: 'Where the river drowned', mood: 'fen',
-    blurb: 'Sunken paths through green water. The reeds weep, and something long moves beneath.' },
+    blurb: 'The river drowned its own road. Fenwyrm keeps its last current, and Grael tends the roots that once held its banks.' },
   { id: 3, numeral: 'III', name: 'The Lantern Deeps', subtitle: 'Where the lost are kept', mood: 'deeps',
-    blurb: 'Under the oldest roots, lanterns hang in rows. Not all of them are empty.' },
+    blurb: 'Cold orchard paths give way to a nursery in the old roots. Silk is the only shelter from the storms.' },
   { id: 4, numeral: 'IV', name: 'The Unlit Throne', subtitle: 'Where the light went', mood: 'throne',
-    blurb: 'Ash-pale birches and a silence that rings. At the heart of it, a crown.' },
+    blurb: 'The Herald walks the birch line, ringing for an exit. Beyond him, the forest folds inward around a light that never rests.' },
 ];
 
 export type WaveGroup = { kind: CreatureKind; count: number; from?: 'front' | 'left' | 'right' };
@@ -36,8 +35,10 @@ export type LevelKind = 'normal' | 'sub' | 'final';
 export interface LevelDef {
   id: number;
   chapter: number;
-  /** 1..10 within the chapter. */
+  /** Position within the chapter. */
   index: number;
+  /** Stable identity for encounters retained from the original forty-level campaign. */
+  legacyId?: number;
   name: string;
   kind: LevelKind;
   waves: WaveGroup[][];
@@ -46,6 +47,8 @@ export interface LevelDef {
   scaling: Scaling;
   /** Cutscene played before the level starts. */
   before?: string;
+  /** Memories encountered before the present-day opening. */
+  visions?: readonly string[];
   /** Cutscene played after the level is won. */
   after?: string;
   /** A line the wood leaves you with when the level is won. */
@@ -114,9 +117,26 @@ const WHISPERS: readonly string[] = [
 
 /** Story beats after levels (cutscene ids), and pre-boss cutscenes. */
 const AFTER: Record<number, string> = {
-  7: 'tuck', 10: 'matron-fall', 14: 'flowers', 20: 'grael-fall', 21: 'name', 28: 'warden', 30: 'widow-fall', 35: 'kindler', 40: 'ending',
+  7: 'tuck', 9: 'gorrik-fall', 10: 'matron-fall', 14: 'flowers', 19: 'fenwyrm-fall', 20: 'grael-gift',
+  21: 'name', 29: 'stag-fall', 30: 'widow-gift', 35: 'kindler', 39: 'herald-fall', 40: 'ending',
 };
-const BEFORE: Record<number, string> = { 1: 'intro', 10: 'matron', 20: 'grael', 30: 'widow', 40: 'king' };
+const BEFORE: Record<number, string> = { 1: 'intro', 10: 'matron', 40: 'king' };
+const VISIONS: Partial<Record<number, readonly string[]>> = {
+  20: ['grael-memory'], 28: ['keepers-memory'], 30: ['widow-memory'], 39: ['herald-memory'], 40: ['gathering', 'light-hunger'],
+};
+
+const INSERTS: Partial<Record<number, readonly { name: string; whisper: string }[]>> = {
+  8: [{ name: 'The Stolen Larder', whisper: 'A thief left its share of bread in the brambles for another.' }],
+  18: [{ name: 'Underwater Mile', whisper: 'Beneath the reeds, the road still points downstream.' }],
+  27: [{ name: 'The Stormbreak', whisper: 'Silk holds between the roots where the wind cannot reach it.' }],
+  37: [{ name: 'Where the Bell Echoes', whisper: 'Each echo comes from a place you already walked through.' }],
+  40: [
+    { name: 'The Ash Path', whisper: 'The bell stayed behind. Here, the only sound ahead was your own footfall.' },
+    { name: 'The Wood Without Sky', whisper: 'The canopy closed over the path so tightly that you walked by touch.' },
+    { name: 'The First Ring', whisper: 'The trees twisted toward the old warmth, even after it turned cold.' },
+    { name: 'The Last Approach', whisper: 'Something ahead breathed in, and the light in your hands leaned toward it.' },
+  ],
+};
 
 const BOSSES: Record<number, CreatureKind> = {
   9: 'gorrik', 10: 'matron', 19: 'fenwyrm', 20: 'grael', 29: 'stag', 30: 'widow', 39: 'herald', 40: 'king',
@@ -138,13 +158,12 @@ const TIPS: Record<number, string> = {
 /** Threat cost of each kind when filling a wave's budget. */
 const COST: Partial<Record<CreatureKind, number>> = { goblin: 1, mossling: 0.55, wraith: 1.5, thornback: 2, moth: 1.5, root: 2.5, hollow: 3.2 };
 
-function pool(level: number): Array<[CreatureKind, number]> {
-  if (level <= 2) return [['goblin', 1]];
-  if (level <= 3) return [['goblin', 3], ['wraith', 1]];
-  if (level <= 10) return [['goblin', 4], ['wraith', 2], ['root', level >= 4 ? 1.2 : 0]];
-  if (level <= 20) return [['goblin', 3], ['wraith', 2], ['root', 1], ['mossling', 3], ['thornback', level >= 13 ? 1.5 : 0], ['hollow', level >= 15 ? 0.8 : 0]];
-  if (level <= 30) return [['goblin', 2], ['wraith', 2], ['root', 1], ['mossling', 2.5], ['thornback', 1.4], ['hollow', 1], ['moth', level >= 21 ? 2.5 : 0]];
-  return [['goblin', 2], ['wraith', 2.2], ['root', 1.2], ['mossling', 2], ['thornback', 1.6], ['hollow', 1.4], ['moth', 2.4]];
+function pool(chapter: number, index: number): Array<[CreatureKind, number]> {
+  if (chapter === 1 && index <= 2) return [['goblin', 1]];
+  if (chapter === 1) return [['goblin', 5], ['wraith', index >= 3 ? 1.4 : 0], ['root', index >= 5 ? 0.9 : 0]];
+  if (chapter === 2) return [['mossling', 5], ['root', 1.8], ['thornback', index >= 3 ? 2.5 : 0], ['wraith', index >= 5 ? 1 : 0]];
+  if (chapter === 3) return [['moth', 5], ['wraith', 2], ['hollow', index >= 4 ? 2.3 : 0], ['root', 1], ['mossling', 1]];
+  return [['hollow', 3.5], ['wraith', 4], ['root', 2.2], ['moth', index >= 9 ? 1.5 : 0]];
 }
 
 function seeded(seed: number): () => number {
@@ -152,18 +171,18 @@ function seeded(seed: number): () => number {
   return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-function waves(level: number): WaveGroup[][] {
+function waves(level: number, chapter: number, index: number): WaveGroup[][] {
   if (level === 1) return [[{ kind: 'goblin', count: 2 }], [{ kind: 'goblin', count: 3 }], [{ kind: 'goblin', count: 4 }]];
   if (level === 2) return [[{ kind: 'goblin', count: 3 }], [{ kind: 'goblin', count: 4 }], [{ kind: 'goblin', count: 3 }, { kind: 'goblin', count: 2, from: 'left' }]];
   const random = seeded(level * 7919);
   const out: WaveGroup[][] = [];
-  const kinds = pool(level).filter(([, w]) => w > 0);
+  const kinds = pool(chapter, index).filter(([, w]) => w > 0);
   const totalWeight = kinds.reduce((s, [, w]) => s + w, 0);
   for (let w = 0; w < 3; w++) {
-    let budget = 2.6 + level * 0.32 + w * 1.5 + (level > 20 ? 1.5 : 0);
+    let budget = 4.2 + level * 0.39 + w * 2.6;
     const counts = new Map<CreatureKind, number>();
     let bodies = 0;
-    const cap = 7 + Math.floor(level / 8);
+    const cap = 7 + Math.floor(level / 5) + w;
     for (let guard = 0; budget > 0.5 && bodies < cap && guard < 60; guard++) {
       let pick = random() * totalWeight;
       let kind = kinds[0][0];
@@ -190,30 +209,38 @@ function waves(level: number): WaveGroup[][] {
   return out.sort((a, b) => threat(a) - threat(b));
 }
 
-export const LEVELS: readonly LevelDef[] = NAMES.map((name, i) => {
-  const id = i + 1;
-  const chapter = Math.ceil(id / 10);
-  const index = id - (chapter - 1) * 10;
-  const kind: LevelKind = index === 10 ? 'final' : index === 9 ? 'sub' : 'normal';
-  const d = id - 1;
-  return {
-    id, chapter, index, name, kind,
-    // A final boss is the level: its court arrives in its phases, not in waves before it.
-    waves: kind === 'final' ? [] : waves(id),
-    boss: BOSSES[id],
-    scaling: { health: 1 + d * 0.03, damage: 1 + d * 0.018, speed: 1 + d * 0.004 },
-    before: BEFORE[id],
-    after: AFTER[id],
-    whisper: WHISPERS[i],
-    reward: REWARDS[id],
-    tip: TIPS[id],
-  };
-});
+function buildJourney(): LevelDef[] {
+  const levels: LevelDef[] = [];
+  const chapterCounts = [0, 0, 0, 0];
+  NAMES.forEach((name, i) => {
+    const legacyId = i + 1;
+    const chapter = Math.ceil(legacyId / 10);
+    const boss = BOSSES[legacyId];
+    const kind: LevelKind = boss ? (CREATURE_SPECS[boss].rank === 'final' ? 'final' : 'sub') : 'normal';
+    const next = (name: string, whisper: string, levelKind: LevelKind): LevelDef => {
+      const id = levels.length + 1;
+      const index = ++chapterCounts[chapter - 1];
+      const depth = (id - 1) * 39 / 47;
+      return {
+        id, chapter, index, name, kind: levelKind, whisper,
+        waves: levelKind === 'final' ? [] : waves(id, chapter, index),
+        scaling: { health: 1 + depth * 0.03, damage: 1 + depth * 0.018, speed: 1 + depth * 0.004 },
+      };
+    };
+    for (const insert of INSERTS[legacyId] ?? []) levels.push(next(insert.name, insert.whisper, 'normal'));
+    const level = next(name, WHISPERS[i], kind);
+    if (boss === 'herald') level.waves = [[{ kind: 'wraith', count: 1 }, { kind: 'hollow', count: 1 }]];
+    levels.push({ ...level, legacyId, boss, before: BEFORE[legacyId], visions: VISIONS[legacyId], after: AFTER[legacyId], reward: REWARDS[legacyId], tip: TIPS[legacyId] });
+  });
+  return levels;
+}
+
+export const LEVELS: readonly LevelDef[] = buildJourney();
 
 /** A throwaway level for fighting one creature alone, on the region of the level it belongs to. */
 export function trialLevel(kind: CreatureKind): LevelDef {
   const home = LEVELS.find((l) => l.boss === kind) ?? LEVELS.find((l) => l.waves.some((w) => w.some((g) => g.kind === kind))) ?? LEVELS[0];
-  return { ...home, name: `Trial · ${CREATURE_SPECS[kind].name}`, waves: [], boss: kind, scaling: NO_SCALING, before: undefined, after: undefined, reward: undefined, tip: undefined, trial: true };
+  return { ...home, name: `Trial · ${CREATURE_SPECS[kind].name}`, waves: [], boss: kind, scaling: NO_SCALING, before: undefined, visions: undefined, after: undefined, reward: undefined, tip: undefined, trial: true };
 }
 
 export const levelById = (id: number): LevelDef | undefined => LEVELS.find((l) => l.id === id);

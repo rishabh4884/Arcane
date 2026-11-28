@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { SpellEffect } from '../config/spells.ts';
 import type { LevelDef, WaveGroup } from '../game/campaign.ts';
-import { BOSS_DIALOGUE } from '../game/bossDialogue.ts';
+import { actBossDialogue, BOSS_DIALOGUE } from '../game/bossDialogue.ts';
 import { DESIGNS } from './characters/index.ts';
 import { COOLDOWNS, CREATURE_SPECS, CreatureState, PlayerState, SPELL_DAMAGE, type AttackSpec, type CreatureKind, type CreatureSpec } from './EncounterState.ts';
 import type { GameEvents } from './events.ts';
@@ -120,7 +120,7 @@ const COURT: Partial<Record<CreatureKind, WaveGroup[][]>> = {
   matron: [[{ kind: 'goblin', count: 3 }, { kind: 'wraith', count: 1 }], [{ kind: 'goblin', count: 3 }, { kind: 'wraith', count: 2, from: 'left' }]],
   grael: [[{ kind: 'mossling', count: 6 }, { kind: 'root', count: 1 }], [{ kind: 'thornback', count: 2 }, { kind: 'mossling', count: 4, from: 'right' }]],
   widow: [[{ kind: 'moth', count: 3 }, { kind: 'wraith', count: 2 }], [{ kind: 'moth', count: 3, from: 'left' }, { kind: 'hollow', count: 1 }]],
-  king: [[{ kind: 'hollow', count: 1 }, { kind: 'wraith', count: 3 }, { kind: 'goblin', count: 3, from: 'left' }], [{ kind: 'moth', count: 3 }, { kind: 'thornback', count: 2, from: 'right' }, { kind: 'root', count: 1 }]],
+  king: [[{ kind: 'hollow', count: 1 }, { kind: 'wraith', count: 3 }, { kind: 'moth', count: 3, from: 'left' }], [{ kind: 'moth', count: 3 }, { kind: 'hollow', count: 2, from: 'right' }, { kind: 'root', count: 1 }]],
 };
 
 export class Encounter {
@@ -137,6 +137,8 @@ export class Encounter {
   private readonly scratch = new THREE.Vector3();
   private readonly scratch2 = new THREE.Vector3();
   private readonly hitBox = new THREE.Box3();
+  private readonly viewPoint = new THREE.Vector3();
+  private readonly viewForward = new THREE.Vector3();
   private readonly spikeGeometry = new THREE.ConeGeometry(0.28, 1.7, 6, 1);
   private readonly ringGeometry = new THREE.RingGeometry(0.86, 1, 72);
   private readonly shared: THREE.Material[] = [];
@@ -148,6 +150,7 @@ export class Encounter {
   private generation = 0;
   private nextId = 0;
   private boss: Actor | null = null;
+  private flankSeen = false;
   private dialogueIndex = -1;
   private dialogueUntil = 0;
   private pendingSpawns: Array<{ at: number; kind: CreatureKind; from: WaveGroup['from']; slot: number; boss?: boolean }> = [];
@@ -261,6 +264,7 @@ export class Encounter {
   private beginWave(index: number): void {
     const level = this.level!;
     this.waveIndex = index;
+    this.flankSeen = false;
     this.setMode('wave');
     const groups = level.waves[index];
     let slot = 0, at = this.time + 0.2;
@@ -271,6 +275,24 @@ export class Encounter {
       }
     }
     this.fx.events?.emit({ type: 'wave', index, total: level.waves.length });
+  }
+
+  /** One motivated look per wave, before an approaching flanker is in attack range. */
+  flankBearing(): number | null {
+    if (this.mode !== 'wave' || this.flankSeen) return null;
+    let best: number | null = null;
+    let nearest = 36;
+    for (const a of this.actors) {
+      if (!a.state.alive || a.figure.fade > 0.42) continue;
+      const p = a.figure.group.position;
+      const dx = p.x - this.camera.position.x, dz = p.z - this.camera.position.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < 9 || a.state.pose === 'windup' || a.state.pose === 'strike') return null;
+      const angle = Math.atan2(dx, -dz);
+      if (Math.abs(angle) > 0.47 && distance < nearest) { best = angle; nearest = distance; }
+    }
+    if (best !== null) this.flankSeen = true;
+    return best;
   }
 
   private beginBoss(): void {
@@ -688,7 +710,7 @@ export class Encounter {
     if (a.boss) {
       // A boss's fall clears its court and every attack still in the air.
       this.clearProjectiles();
-      for (const other of this.actors) if (other !== a && other.state.alive) { other.state.hit('quake', 99999); this.fx.events?.emit({ type: 'enemy-death', kind: other.kind, position: other.figure.group.position.clone(), pan: this.pan(other.figure.group.position), height: other.spec.height }); }
+      for (const other of this.actors) if (other !== a && other.state.alive && other.kind !== 'egg') { other.state.hit('quake', 99999); this.fx.events?.emit({ type: 'enemy-death', kind: other.kind, position: other.figure.group.position.clone(), pan: this.pan(other.figure.group.position), height: other.spec.height }); }
       this.pendingSpawns.length = 0;
     }
   }
@@ -728,6 +750,7 @@ export class Encounter {
       this.player.health = Math.max(1, this.player.health - 2.2 * dt);
     }
     this.updateFlow(dt);
+    this.camera.getWorldDirection(this.viewForward).setY(0).normalize();
     const fighting = this.active && this.player.alive && (this.mode !== 'boss-intro' || !!this.level?.trial);
     PLAYER_GROUND.copy(this.camera.position).setY(terrainHeight(this.camera.position.x, this.camera.position.z));
     for (const a of this.actors) this.updateActor(a, dt, fighting, reducedMotion);
@@ -762,7 +785,8 @@ export class Encounter {
     dx /= distance; dz /= distance;
     const emerging = a.figure.fade > 0.25 && a.state.alive;
     const los = this.lineOfSight(a);
-    const strike = !emerging && a.state.update(dt * a.haste, distance, los, fighting || !a.state.alive);
+    const inView = this.inView(a);
+    const strike = !emerging && a.state.update(dt * a.haste, inView ? distance : Infinity, los, fighting || !a.state.alive);
     if (a.state.pose !== a.lastPose) {
       if (a.state.pose === 'windup') this.windup(a);
       a.lastPose = a.state.pose;
@@ -777,12 +801,13 @@ export class Encounter {
       }
       if (a.burnTick <= 0) { a.burnTick = 1; this.hitFoe(a, 'fire', this.centre(a, new THREE.Vector3()), 6); }
     }
-    if (strike && fighting) this.strike(a, distance, los);
+    if (strike && fighting && inView) this.strike(a, distance, los);
     // Movement.
     a.velocity.set(0, 0, 0);
     let faceYaw: number | null = Math.atan2(dx, dz);
-    const entering = a === this.boss && a.kind === 'widow' && a.state.alive && this.mode === 'boss-intro'
-      && !this.level?.trial && this.dialogueIndex < 2 && p.x > 4;
+    const speaking = a === this.boss && a.state.alive && this.mode === 'boss-intro' && !this.level?.trial;
+    const line = speaking ? BOSS_DIALOGUE[a.kind]?.[this.dialogueIndex] : undefined;
+    const entering = speaking && a.kind === 'widow' && this.dialogueIndex < 2 && p.x > 4;
     if (entering) {
       a.velocity.set(-1.7, 0, 0.36);
       moveOnGround(p, a.velocity.x * dt, a.velocity.z * dt, this.obstacles);
@@ -792,9 +817,12 @@ export class Encounter {
     if (a.knock) this.updateKnock(a, dt);
     if (a.blink) this.updateBlink(a, dt);
     else if (a.knock) faceYaw = null;
-    else if (a.rush && a.state.pose === 'strike') this.updateRush(a, dt, distance);
+    else if (a.rush && a.state.pose === 'strike') {
+      if (inView) this.updateRush(a, dt, distance);
+      else a.rush = null;
+    }
     else if (fighting && a.state.alive && a.state.mobile && a.state.pose === 'walk' && !emerging && !this.level?.trial) {
-      this.steer(a, distance, dx, dz, dt);
+      this.steer(a, distance, dx, dz, dt, inView);
       const speed = Math.hypot(a.velocity.x, a.velocity.z);
       // At a distance, a creature faces where it is going, so its flanking and side-stepping read
       // as movement across the wood; close in, it squares up to the caster and steps sideways.
@@ -811,6 +839,7 @@ export class Encounter {
     a.figure.update(dt, {
       pose: entering ? 'walk' : a.state.pose, progress: a.state.progress, attack: a.state.attack.id, velocity: a.velocity, faceYaw,
       look: this.camera.position, groundY: p.y + (spec.hover ? a.altitude : 0), reducedMotion, anger: a.anger,
+      extra: line ? (pose) => actBossDialogue(a.kind, this.dialogueIndex, 1 - (this.dialogueUntil - this.modeTime) / line.seconds, pose) : undefined,
     });
     if (spec.hover) a.figure.lift.position.y += a.altitude;
     if (a.blink) a.figure.u.uDissolve.value = a.blink.age < 0.45 ? a.blink.age / 0.45 : Math.max(0, 1 - (a.blink.age - 0.45) / 0.45);
@@ -825,6 +854,13 @@ export class Encounter {
     }
   }
 
+  private inView(a: Actor): boolean {
+    if (this.level?.trial) return true;
+    const view = this.centre(a, this.viewPoint).applyMatrix4(this.camera.matrixWorldInverse);
+    const halfWidth = -view.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * this.camera.aspect;
+    return view.z < -0.5 && Math.abs(view.x) < halfWidth * 0.96 + a.spec.radius * 0.35;
+  }
+
   private lineOfSight(a: Actor): boolean {
     const from = this.centre(a, this.scratch2);
     this.scratch.copy(this.camera.position).sub(from);
@@ -835,7 +871,7 @@ export class Encounter {
   }
 
   /** Movement intent for one creature by its role. */
-  private steer(a: Actor, distance: number, dx: number, dz: number, dt: number): void {
+  private steer(a: Actor, distance: number, dx: number, dz: number, dt: number, inView: boolean): void {
     const spec = a.spec, p = a.figure.group.position;
     a.strafeTimer -= dt;
     if (a.strafeTimer <= 0) { a.strafe = -a.strafe; a.strafeTimer = 1.4 + Math.random() * 2.4; }
@@ -869,6 +905,14 @@ export class Encounter {
       }
     }
     let vx = dx * forward + sideX * lateral, vz = dz * forward + sideZ * lateral;
+    if (!inView) {
+      // Route around the caster, toward a point ahead of the camera. Ranged foes also rejoin
+      // the view instead of hovering just outside it at their preferred throwing distance.
+      vx = dx * distance + this.viewForward.x * 8;
+      vz = dz * distance + this.viewForward.z * 8;
+      const route = Math.hypot(vx, vz) || 1;
+      vx /= route; vz /= route;
+    }
     for (const o of this.obstacles) {
       const ox = p.x - o.x, oz = p.z - o.z, d = Math.hypot(ox, oz), safe = o.radius + spec.radius + 1.6;
       if (d < safe && d > 0.01) { const w = (safe - d) / safe * 2.4; vx += ox / d * w; vz += oz / d * w; const s = Math.sin(a.phase) > 0 ? 1 : -1; vx += -oz / d * w * 0.6 * s; vz += ox / d * w * 0.6 * s; }

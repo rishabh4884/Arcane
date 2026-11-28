@@ -310,6 +310,9 @@ export class World {
       } else if (event.type === 'egg-break') {
         this.screenFx.edge('#d8434f', 0.2 + event.anger * 0.3);
         this.shake(0.2 + event.anger * 0.3);
+      } else if (event.type === 'wave-clear' && !this.encounter.currentLevel?.trial) {
+        const hop = (event.index + (this.encounter.currentLevel?.id ?? 0)) % 3 === 0;
+        this.controls.advance(hop ? 6.4 : 4.3, hop ? 2.05 : 2.65, hop);
       } else if (event.type === 'encounter' && event.mode === 'active') {
         this.clearStuckArrows();
       }
@@ -573,6 +576,7 @@ export class World {
     this.endCinematic();
     this.ambient = false;
     this.controls.reset();
+    if (!level.trial && level.kind !== 'final') this.controls.advance(level.id === 1 ? 1.5 : 3.7, 2.5, false);
     this.clearStuckArrows();
     this.setMood(mood, 1.5);
     this.regions.apply(regionFor(level));
@@ -1049,6 +1053,13 @@ export class World {
     const paused = worldInputBlocked() && !this.cinematic;
     this.updateMood(dt);
     if (this.ambient && !this.cinematic) this.driftCamera(dt);
+    if (!paused && !this.cinematic && !this.ambient && this.encounter.active && !this.encounter.currentLevel?.trial) {
+      if (this.controls.canLookAside) {
+        const flank = this.encounter.flankBearing();
+        if (flank !== null) this.controls.lookAside(flank);
+      }
+      this.controls.update(dt, this.environment.obstacles, this.reducedMotion.matches);
+    }
     this.updateHush(paused ? 0 : dt);
     // In a hush the wood slows almost to a stop rather than freezing: the stillness feels held.
     const stillness = 1 - this.hush * 0.93;
