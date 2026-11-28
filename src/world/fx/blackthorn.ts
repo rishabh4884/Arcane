@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { animate, type SpellAnimation, type SpellContext } from '../effects.ts';
 import { tube, type V3 } from '../rig/Body.ts';
 import { terrainHeight } from '../spatial.ts';
-import { clamp01, easeOutBack, easeOutCubic, glowSprite, rng } from '../vfx.ts';
+import { clamp01, easeOutCubic, glowSprite, rng } from '../vfx.ts';
 
 /**
  * Blackthorn Wake: the ground tears open down the lane and black thorn erupts from the furrow in
@@ -112,24 +112,25 @@ export function blackthornWake(target: THREE.Vector3, color: THREE.Color, ctx: S
     });
     return at;
   };
-  for (let d = 1.4; d <= reach; d += 1.5 + random() * 0.5) {
-    const n = random() < 0.45 ? 3 : 2;
+  for (let d = 1.4; d <= reach; d += 1.05 + random() * 1.95) {
+    const n = 1 + Math.floor(random() * 4);
     for (let k = 0; k < n; k++) {
-      const s = (k - (n - 1) / 2) * 0.9 + (random() - 0.5) * 0.4;
-      const p = from.clone().addScaledVector(dir, d + (random() - 0.5) * 0.6).addScaledVector(side, s);
+      const s = (random() - 0.5) * 3.05;
+      const along = d + (random() - 0.5) * 1.5;
+      const p = from.clone().addScaledVector(dir, along).addScaledVector(side, s);
       p.y = terrainHeight(p.x, p.z);
       const object = new THREE.Group();
       const spine = new THREE.Mesh(geometries[Math.floor(random() * geometries.length)], bark);
       object.add(spine);
       object.position.copy(p);
       // Lean out of the furrow, hooks reaching down the lane.
-      object.rotation.set(0, yaw + (random() - 0.5) * 0.7, -s * 0.28 + (random() - 0.5) * 0.15);
+      object.rotation.set((random() - 0.5) * 0.4, yaw + random() * Math.PI * 2, -s * 0.19 + (random() - 0.5) * 0.32);
       const struck = struckAt(p);
-      const height = (0.7 + random() * 0.45) * (struck >= 0 ? 1.3 : 1) * (0.9 + Math.min(1, d / 20) * 0.25);
+      const height = (0.44 + random() ** 1.45 * 1.12) * (struck >= 0 ? 1.24 : 1);
       object.scale.set(height, 0.001, height);
       object.visible = false;
       group.add(object);
-      const shoot: Shoot = { object, spine, at: 0.18 + d / SPEED, height, struck, seed: random() * 6.28, burst: false, splinter: false };
+      const shoot: Shoot = { object, spine, at: 0.18 + along / SPEED, height, struck, seed: random() * 6.28, burst: false, splinter: false };
       shoots.push(shoot);
       if (k === 0 && random() < 0.5) {
         const sprite = glowSprite(color, 0.5, undefined, 0);
@@ -152,7 +153,7 @@ export function blackthornWake(target: THREE.Vector3, color: THREE.Color, ctx: S
       const local = age - s.at;
       s.object.visible = local >= 0 && local < hold + sink;
       if (!s.object.visible) continue;
-      const rise = easeOutBack(clamp01(local / 0.16));
+      const rise = easeOutCubic(clamp01(local / 0.13));
       const down = easeOutCubic(clamp01((local - hold) / sink));
       // A struck shoot lunges when its creature is hit and keeps shuddering; the rest barely breathe.
       const since = s.struck >= 0 ? age - s.struck : -1;

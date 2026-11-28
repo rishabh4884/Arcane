@@ -353,6 +353,10 @@ export class AudioEngine {
     }
     this.tone({ type: 'square', freq: 2500, freqEnd: 3200, attack: 0.08, decay: 1.1, gain: 0.018, when: 0.3, filter: { type: 'highpass', freq: 2000 }, pan, reverb: 1, vibrato: { rate: 13, depth: 140 } });
     this.noise({ filter: 'bandpass', freq: 2600, freqEnd: 1300, q: 1.1, attack: 0.05, decay: 1.4, gain: 0.26, when: 0.2, pan, reverb: 1, tremolo: { rate: 31, depth: 0.9 } });
+    for (const [offset, rising, falling] of [[0.19, 1540, 3090], [0.29, 2240, 4470], [0.46, 3370, 1510]] as const) {
+      this.tone({ type: 'triangle', freq: rising, freqEnd: falling, when: offset, attack: 0.025, decay: 0.68, gain: 0.075, pan, reverb: 0.9,
+        vibrato: { rate: 18, depth: 195 } });
+    }
     this.tone({ type: 'sine', freq: 72, freqEnd: 30, attack: 0.01, decay: 0.95, gain: 0.5, when: 0.18 });
     this.noise({ filter: 'lowpass', freq: 240, freqEnd: 90, brown: true, attack: 0.02, decay: 1.3, gain: 0.45, when: 0.18, pan });
   }

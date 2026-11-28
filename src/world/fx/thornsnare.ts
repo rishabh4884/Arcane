@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { animate, type SpellAnimation, type SpellContext } from '../effects.ts';
 import { tube, type V3 } from '../rig/Body.ts';
 import { terrainHeight } from '../spatial.ts';
-import { clamp01, easeOutBack, easeOutCubic, rng } from '../vfx.ts';
+import { clamp01, easeOutCubic, rng } from '../vfx.ts';
 
 /**
  * Thornsnare in four beats: the soil splits in a ring of lit fissures; bramble vines lash up out of
@@ -108,21 +108,21 @@ export function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: Spell
 
   const thornMaterial = new THREE.MeshStandardMaterial({ color: '#1d150e', roughness: 0.6 });
   const leafMaterial = new THREE.MeshStandardMaterial({ color: '#3f5d2b', roughness: 0.8, side: THREE.DoubleSide, emissive: color.clone().multiplyScalar(0.06) });
-  const coil = 0.72;
+  const coil = 0.45;
   const vines: Vine[] = [];
   const count = 7;
   const frame = new THREE.Matrix4(), x = new THREE.Vector3(), y = new THREE.Vector3(), z = new THREE.Vector3();
   for (let i = 0; i < count; i++) {
     const a0 = (i / count) * Math.PI * 2 + random() * 0.5;
-    const turn = (i % 2 ? 1 : -1) * (1.0 + random() * 0.45) * Math.PI * 2;
-    const base = 1.6 + random() * 0.7, height = 1.5 + random() * 1.1;
-    // Out of the soil in a lashing arch, then round and up the quarry, closing in as it climbs.
+    const turn = (i % 2 ? 1 : -1) * (0.25 + random() * 0.55) * Math.PI;
+    const base = 1.7 + random() * 0.95, height = 0.75 + random() * 0.63;
+    // Separate roots cross over the target, with hooked tips that dive back into the soil.
     const points: V3[] = [];
     for (let k = 0; k <= 16; k++) {
       const u = k / 16;
       const angle = a0 + turn * Math.pow(u, 1.25);
       const r = coil + (base - coil) * Math.pow(1 - u, 2.2) + Math.sin(u * 23 + i) * 0.04;
-      points.push([Math.cos(angle) * r, -0.3 + height * u + Math.sin(u * Math.PI) * 0.45, Math.sin(angle) * r]);
+      points.push([Math.cos(angle) * r, -0.22 + height * Math.sin(Math.PI * u) ** 1.25 + Math.sin(u * 11 + i) * Math.sin(Math.PI * u) * 0.13, Math.sin(angle) * r]);
     }
     const geometry = tube(points, (u) => 0.012 + 0.11 * Math.pow(1 - u, 0.85), { radial: 7, segments: 40, wobble: 0.22, wobbleFrequency: 7, seed: i * 17 + 3, capStart: false });
     const { material, grow, wither } = vineMaterial(color);
@@ -160,7 +160,7 @@ export function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: Spell
       mesh.add(leaf);
       thorns.push({ mesh: leaf, u });
     }
-    vines.push({ mesh, grow, wither, start: 0.18 + i * 0.035 + random() * 0.05, thorns, sway: random() * 6.28 });
+    vines.push({ mesh, grow, wither, start: 0.075 + i * 0.019 + random() * 0.025, thorns, sway: random() * 6.28 });
   }
 
   // Placed only now: the leaves above were aimed in the group's own space.
@@ -174,22 +174,21 @@ export function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: Spell
     m.uGlow.value = 0.25 + 0.75 * Math.exp(-Math.max(0, age - 0.5) * 2.2) + (age > die ? 0 : 0.12 * Math.sin(age * 5));
     m.uFade.value = 1 - clamp01((age - (life - 0.6)) / 0.6);
     // Cinch: the coils draw tight just after they close, then strain against the quarry.
-    const cinch = easeOutBack(clamp01((age - 0.8) / 0.3));
-    const strain = age > 1.1 && age < die ? 1 : 0;
-    const shudder = strain * Math.max(0, Math.sin(age * 4.1)) ** 6;
+    const cinch = easeOutCubic(clamp01((age - 0.29) / 0.26));
+    const strain = age > 0.5 && age < die ? 1 : 0;
     for (const v of vines) {
       const local = age - v.start;
-      const grown = easeOutCubic(clamp01(local / 0.5));
+      const grown = easeOutCubic(clamp01(local / 0.22));
       const withering = clamp01((age - die) / 0.3);
       const retreat = easeOutCubic(clamp01((age - die - 0.35) / 0.55));
       v.grow.value = grown * (1 - retreat);
       v.wither.value = withering;
-      const squeeze = 1 - cinch * 0.1;
-      v.mesh.scale.set(squeeze, 1 + cinch * 0.04, squeeze);
-      v.mesh.rotation.y = Math.sin(age * 1.3 + v.sway) * 0.025 + strain * Math.sin(age * 19 + v.sway) * 0.012 + shudder * 0.05 * Math.sin(v.sway * 5);
+      const squeeze = 1 - cinch * 0.16;
+      v.mesh.scale.set(squeeze, 1 - cinch * 0.57, squeeze);
+      v.mesh.rotation.y = strain * Math.sin(age * 3 + v.sway) * 0.012;
       for (const th of v.thorns) {
         const k = clamp01((v.grow.value - th.u) / 0.08);
-        th.mesh.scale.setScalar(Math.max(0.001, easeOutBack(k) * th.mesh.userData.size * (1 - withering * 0.3)));
+        th.mesh.scale.setScalar(Math.max(0.001, easeOutCubic(k) * th.mesh.userData.size * (1 - withering * 0.3)));
       }
       if (!cinched && local > 0.05 && local < 0.5 && Math.random() < 0.5) {
         // Soil flung from the growing tip.
@@ -199,7 +198,7 @@ export function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: Spell
         ctx.particles?.emit({ x: x.x, y: x.y, z: x.z, vx: (Math.random() - 0.5) * 2, vy: 1.5 + Math.random() * 2, vz: (Math.random() - 0.5) * 2, color: dust, size: 0.05, ttl: 0.7, gravity: 9, drag: 0.5, style: 'spark' });
       }
     }
-    if (!cinched && age > 0.85) {
+    if (!cinched && age > 0.32) {
       cinched = true;
       ctx.screen?.shake(0.12);
       ctx.light?.(at.clone().setY(at.y + 1), color, 5, 0.5, 7);
@@ -211,7 +210,7 @@ export function thornsnare(target: THREE.Vector3, color: THREE.Color, ctx: Spell
       ctx.particles?.burst(centre, 10, { speed: 1, radius: 1, color: new THREE.Color('#6d6a52'), size: 0.12, sizeEnd: 0.02, ttl: 1.4, gravity: 2, drag: 2, style: 'glow' });
     }
     if (strain && Math.random() < 0.08) ctx.particles?.emit({ x: at.x + (Math.random() - 0.5) * 1.6, y: at.y + 0.3 + Math.random() * 2, z: at.z + (Math.random() - 0.5) * 1.6, vx: 0, vy: 0.4, vz: 0, color, size: 0.05, sizeEnd: 0.01, ttl: 1.1, drag: 1, gravity: -0.3, style: 'glow' });
-  }, 0.55, () => {
+  }, 0.32, () => {
     ctx.mist?.burst(at.clone().setY(at.y + 0.3), 16, { speed: 2.4, direction: new THREE.Vector3(0, 1, 0), spread: 2, color: new THREE.Color('#5d5040'), size: 0.9, sizeEnd: 2.2, alpha: 0.35, ttl: 1.4, drag: 1.6, style: 'mist' });
     ctx.particles?.burst(at, 36, { speed: 4.2, direction: new THREE.Vector3(0, 1, 0), spread: 1.2, color: dust, size: 0.06, ttl: 0.9, gravity: 9, drag: 0.6, style: 'spark' });
     ctx.screen?.shake(0.15);

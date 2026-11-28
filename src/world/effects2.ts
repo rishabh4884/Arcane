@@ -11,7 +11,7 @@ import { screech } from './fx/screech.ts';
 import { thornsnare } from './fx/thornsnare.ts';
 import { tidecaller } from './fx/tidecaller.ts';
 import { wispSwarm } from './fx/wisps.ts';
-import { Trail, WHITE, clamp01, easeOutBack, easeOutCubic, flareTexture, glowSprite, ringTexture } from './vfx.ts';
+import { Trail, WHITE, clamp01, easeOutBack, easeOutCubic, glowSprite, ringTexture } from './vfx.ts';
 
 /**
  * THE NEWER SPELLS
@@ -133,26 +133,22 @@ function spiritStag(target: THREE.Vector3, color: THREE.Color, ctx: SpellContext
 
 function sunflare(origin: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {
   const group = new THREE.Group();
+  group.name = 'Sunflare';
   const at = origin.clone();
-  const core = facingPlane(flareTexture(), color, 3, ctx.cameraQuaternion);
-  const ring = facingPlane(ringTexture(), color, 1, ctx.cameraQuaternion);
-  core.position.copy(at); ring.position.copy(at);
-  group.add(core, ring);
-  const rays: THREE.Sprite[] = [];
-  for (let i = 0; i < 10; i++) { const s = glowSprite(color, 0.4, undefined, 0.9); s.position.copy(at); group.add(s); rays.push(s); }
-  return animate(group, 1.3, (_t, age) => {
-    const gather = clamp01(age / 0.25), burst = clamp01((age - 0.25) / 1.0);
-    core.scale.setScalar(0.2 + gather * 0.8 + easeOutCubic(burst) * 4);
-    core.material.opacity = burst > 0 ? 1 - burst : gather;
-    ring.scale.setScalar(0.5 + easeOutCubic(burst) * 14);
-    ring.material.opacity = (1 - burst) * 0.8;
-    rays.forEach((s, i) => {
-      const a = (i / rays.length) * Math.PI * 2;
-      s.position.copy(at).add(new THREE.Vector3(Math.cos(a), Math.sin(a), 0).applyQuaternion(ctx.cameraQuaternion).multiplyScalar(easeOutCubic(burst) * 6));
-      s.material.opacity = 1 - burst;
-    });
-    ctx.illuminate?.(0, at, color, 3 * (1 - burst) * gather, 40);
-  }, 0.25, () => { ctx.screen?.flash('#fff6d0', 0.55); ctx.particles?.burst(at, 40, { speed: 6, color, size: 0.08, ttl: 0.8, drag: 1.2, style: 'spark' }); });
+  const bloom = glowSprite(color.clone().lerp(WHITE, 0.75), 0.1, undefined, 0);
+  bloom.position.copy(at);
+  group.add(bloom);
+  return animate(group, 1.6, (_t, age) => {
+    const gather = clamp01(age / 0.25);
+    const fade = clamp01((age - 0.25) / 1.35);
+    bloom.scale.setScalar(0.2 + gather * 0.5 + easeOutCubic(fade) * 16);
+    bloom.material.opacity = gather * (1 - fade) ** 2;
+    ctx.illuminate?.(0, at, color, 5 * gather * (1 - fade) ** 2, 42);
+  }, 0.25, () => {
+    ctx.screen?.flash('#fff5d5', 0.75);
+    ctx.light?.(at, color, 26, 1.15, 45);
+    ctx.particles?.burst(at, 30, { speed: 4.5, color, size: 0.1, sizeEnd: 0.018, ttl: 1.05, drag: 0.75, style: 'glow' });
+  });
 }
 
 function moonveil(origin: THREE.Vector3, color: THREE.Color, ctx: SpellContext): SpellAnimation {

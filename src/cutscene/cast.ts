@@ -120,7 +120,7 @@ export const KINDLER_HANDS: Design = {
 
 export const WARDEN: Design = {
   ...UNLIT_KING,
-  kind: 'warden', name: 'Elder Rowan', eye: '#ffe9b8', eyeAngry: '#ffffff', edge: '#fff2c8',
+  kind: 'warden', name: 'The Wanderer', eye: '#ffe9b8', eyeAngry: '#ffffff', edge: '#fff2c8',
   build(b: Body) { buildRegal(b, WARDEN_LOOK); },
 };
 

@@ -340,7 +340,12 @@ export const HOLLOW_STAG: Design = {
   animate(a: Anim) {
     const r = a.rig;
     const charging = a.pose === 'strike' && a.attack === 'charge';
-    quadruped(a, { stride: charging ? 0.8 : 0.42, knee: 0.9, bob: 0.07, gallop: charging ? 1 : 0 });
+    const galloping = charging || a.speed > 3.1;
+    quadruped(a, { stride: galloping ? 0.86 : 0.46, knee: galloping ? 1.15 : 0.75, bob: galloping ? 0.19 : 0.055, gallop: galloping ? 1 : 0, measured: true });
+    const footfall = a.phase * TAU;
+    r.rot('neck', Math.cos(footfall + 0.5) * (galloping ? 0.19 : 0.055) * a.move);
+    r.rot('head', -Math.cos(footfall + 0.73) * (galloping ? 0.12 : 0.035) * a.move);
+    r.rot('hide', -0.26 * (galloping ? a.move : 0), 0, 0.04 * Math.sin(footfall) * a.move);
     idleLife(a, 0.6);
     lookAt(a, 0.7, 0.6);
     blink(a, 99);
@@ -866,7 +871,7 @@ export const WIDOW: Design = {
 const NIGHT = '#14121c', NIGHT_EDGE = '#2c2836', KING_BARK = '#9e9383';
 
 export const UNLIT_KING: Design = {
-  kind: 'king', name: 'Rowan Hollowheart', height: 9.2, radius: 2.3, turnRate: 0.8, stride: 4.4, pace: 0.5,
+  kind: 'king', name: 'The Hollow', height: 9.2, radius: 2.3, turnRate: 0.8, stride: 4.4, pace: 0.5,
   eye: '#ffe7a3', eyeAngry: '#ffffff', edge: '#ffe7a3', mist: 1.2,
   cloth: [0.22, 5.8, 0.0, 0.4],
   stiffness: { hips: 5, spine: 5, chest: 5, neck: 5, head: 4.5, antlerL: 5, antlerR: 5, cape1: 3, cape2: 2.5, shoulderL: 5, shoulderR: 5, elbowL: 5.5, elbowR: 5.5 },
@@ -1048,7 +1053,7 @@ export function buildRegal(b: Body, look: RegalLook): void {
     }
     b.part(tube([[-0.05, 7.56, 0.78], [0.05, 7.56, 0.78]], [0.006], { radial: 5 }), { color: '#ffd27a', surface: 'glow', glow: 0.3, bones: ['head'] });
 
-    // Rowan's old circlet is still seated on the brow.
+    // The Wanderer's old circlet is still seated on the brow.
     const m = new Sculpt();
     const iron = { color: '#3a3128', shade: '#1a1612', surface: 'metal' as const, relief: 0.002, reliefFreq: 60, bones: ['head'] as string[] };
     const ring: V3[] = [];

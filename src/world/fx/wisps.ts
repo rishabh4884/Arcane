@@ -53,7 +53,7 @@ export function wispSwarm(_origin: THREE.Vector3, target: THREE.Vector3, color: 
     // The cloud drifts a little toward the hunt and down out of the leaves before it falls.
     const toward = (to ?? target).clone().sub(start).setY(0).normalize();
     const drift = toward.multiplyScalar(2 + random() * 2).add(new THREE.Vector3((random() - 0.5) * 2, -1 - random() * 1.5, (random() - 0.5) * 2));
-    const head = glowSprite(lead ? body.clone().lerp(WHITE, 0.25) : body, lead ? 0.38 : 0.2 + random() * 0.1, undefined, 0);
+    const head = glowSprite(lead ? body.clone().lerp(WHITE, 0.52) : body, lead ? 0.55 : 0.24 + random() * 0.14, undefined, 0);
     group.add(head);
     let trail: Trail | null = null;
     if (lead) { trail = new Trail(color, 0.07, 0.45, 32, 1); group.add(trail.mesh); }
@@ -64,9 +64,12 @@ export function wispSwarm(_origin: THREE.Vector3, target: THREE.Vector3, color: 
     spawn(to, delay, true);
     spawn(to, delay + 0.06, false);
     spawn(to, delay + 0.12, false);
+    spawn(to, delay + 0.17, false);
+    spawn(to, delay + 0.22, false);
+    spawn(to, delay + 0.28, false);
   });
   // A few that never hunt: they wake, blink, and settle back into the dark.
-  for (let i = 0; i < 14; i++) spawn(null, 0, false);
+  for (let i = 0; i < 32; i++) spawn(null, 0, false);
 
   const p = new THREE.Vector3(), from = new THREE.Vector3(), c1 = new THREE.Vector3(), c2 = new THREE.Vector3();
   const curve = new THREE.CubicBezierCurve3(from, c1, c2, new THREE.Vector3());
@@ -86,7 +89,7 @@ export function wispSwarm(_origin: THREE.Vector3, target: THREE.Vector3, color: 
       if (!f.to) {
         wander(f, age, p);
         f.head.position.copy(p);
-        f.head.material.opacity = woke * blink * clamp01((life - 0.6 - age) / 0.8) * 0.8;
+        f.head.material.opacity = woke * blink * clamp01((life - 0.6 - age) / 0.8);
         continue;
       }
       const dive = f.delay - 0.55;
@@ -119,7 +122,7 @@ export function wispSwarm(_origin: THREE.Vector3, target: THREE.Vector3, color: 
     }
     // The crowns they leave glow faintly as the swarm wakes.
     const wakeGlow = clamp01(age / 0.4) * clamp01((1.6 - age) / 0.8);
-    if (wakeGlow > 0) ctx.illuminate?.(1, crowns[0], body, 0.9 * wakeGlow, 10);
+    if (wakeGlow > 0) ctx.illuminate?.(1, crowns[0], body, 1.7 * wakeGlow, 13);
     if (age < 1.2 && random() < 0.5) {
       const crown = crowns[Math.floor(random() * crowns.length)];
       ctx.particles?.emit({ x: crown.x + (random() - 0.5) * 4, y: crown.y + (random() - 0.5) * 2, z: crown.z + (random() - 0.5) * 4, vx: 0, vy: -0.4, vz: 0, color: body, size: 0.06, ttl: 1, drag: 0.5, style: 'glow' });

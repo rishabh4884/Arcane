@@ -16,8 +16,8 @@ import { BOSS_STORIES } from './bossStories.ts';
  * ────────────────────
  * You wake in the Hushwood not knowing how you came there or what is behind its silence. A gnome
  * called Tuck finds you. The Moth Matron, Grael the Rootwarden and the Widow each hoard the
- * wood's stolen lights, and each gives them up when they fall. Visions tell of the Warden, who loved
- * the wood so much he swallowed every light to keep it safe, and became the Unlit King. At the end,
+ * wood's stolen lights, and each gives them up when they fall. Visions follow Elder Vaelor, who
+ * came to the wood as a stranger and became the Hollowing King when he swallowed its light. At the end,
  * you learn what you are: the last light the wood had, made into a pair of hands.
  */
 
@@ -109,12 +109,12 @@ const TUCK: Script = {
     { t: 31, p: G(0.1, 1.85, 17), l: G(0.6, 0.5, 12.5), fov: 52 },
   ],
   lines: [
-    { at: 3, until: 6.6, speaker: 'Tuck', text: 'Oi. You. Yes — you, with the glowing hands.' },
-    { at: 7.2, until: 10.8, speaker: 'Tuck', text: 'Name’s Tuck. I keep the stumps round here.' },
-    { at: 11.3, until: 15.2, speaker: 'Tuck', text: 'You make light. Nobody’s done that in a long, long while.' },
-    { at: 15.8, until: 20.2, speaker: 'Tuck', text: 'See this? A lantern-flower. Every one of them had a light inside, once.' },
-    { at: 20.8, until: 24.6, speaker: 'Tuck', text: 'They didn’t go out. They were taken.' },
-    { at: 25.2, until: 29.5, speaker: 'Tuck', text: 'Keep going. Deeper in. I’ll find you.' },
+    { at: 3, until: 6.6, speaker: 'Tuck', text: 'Oi. Down here. I’ve been waving since you came over the rise.' },
+    { at: 7.2, until: 10.8, speaker: 'Tuck', text: 'Tuck. I mind the stumps. Used to be trees, but I’m adaptable.' },
+    { at: 11.3, until: 15.2, speaker: 'Tuck', text: 'Hold your hand out again. I thought I’d imagined that, till I felt it on my face.' },
+    { at: 15.8, until: 20.2, speaker: 'Tuck', text: 'We used to plant these by the doors. Walk home late enough and the whole lane smelled of warm honey.' },
+    { at: 20.8, until: 24.6, speaker: 'Tuck', text: 'Then they all shut on the same night. Summer, too. That’s how we knew somebody had done it.' },
+    { at: 25.2, until: 29.5, speaker: 'Tuck', text: 'Follow the old lane until you smell water. I’ll go underneath. Quicker, if you’re my height.' },
   ],
   build(s) {
     const tuck = s.actor('tuck', GNOME_DESIGNS.moss, TUCK_AT[0], TUCK_AT[1], 0.1, 0, 0.3);
@@ -133,7 +133,11 @@ const TUCK: Script = {
     if (t < 2) s.act('tuck', 'stagger', t / 2);
     else if (t < 4) { s.act('tuck', 'idle'); extra = (a) => a.rig.rot('spine', 0.3 * bump(2, 4, t)).rot('shoulderR', -0.8 * bump(2, 4, t)); }
     else if (t < 8) { s.act('tuck', 'idle'); extra = wave('R', bump(4, 8, t)); }
-    else if (t < 11) { s.act('tuck', 'idle'); s.face('tuck', 0); }
+    else if (t < 11) {
+      s.act('tuck', 'idle');
+      s.face('tuck', 0);
+      extra = (a) => a.rig.rot('head', -0.16 * bump(8, 11, t)).rot('shoulderL', -0.38 * bump(8, 11, t)).rot('elbowL', -0.53);
+    }
     else if (t < 13) s.travel('tuck', TUCK_AT, [1.35, 12.45], 11, 13);
     else if (t < 21) {
       s.act('tuck', 'idle');
@@ -164,10 +168,10 @@ const MATRON: Script = {
   ],
   title: { at: 11, until: 17, name: 'The Moth Matron', subtitle: 'Keeper of the Caged Lights' },
   lines: [
-    { at: 9.5, until: 13, speaker: 'The Moth Matron', text: 'Little light.' },
-    { at: 13.5, until: 17.5, speaker: 'The Moth Matron', text: 'Have you come all this way to be kept?' },
-    { at: 18, until: 22, speaker: 'The Moth Matron', text: 'I keep them all. Every one that strays.' },
-    { at: 22.5, until: 26.5, speaker: 'The Moth Matron', text: 'Come. My children are so cold.' },
+    { at: 9.5, until: 13, speaker: 'The Moth Matron', kind: 'whisper', text: 'Stop there. I can feel your steps in the thread.' },
+    { at: 13.5, until: 17.5, speaker: 'The Moth Matron', kind: 'whisper', text: 'I used to leave gaps in the weave. The little ones liked to watch the moon through them.' },
+    { at: 18, until: 22, speaker: 'The Moth Matron', kind: 'whisper', text: 'One morning I found a cocoon cut open. I’ve been sewing up the gaps ever since.' },
+    { at: 22.5, until: 26.5, speaker: 'The Moth Matron', kind: 'whisper', text: 'Come in where I can see you. I want to know who’s been walking under my children.' },
   ],
   build(s) {
     s.actor('matron', MOTH_MATRON, 0, -12, 0, 10, 0.5);
@@ -178,7 +182,8 @@ const MATRON: Script = {
     s.hover('matron', 10 - smooth(2, 9, t) * 8.8);
     s.act('matron', t > 14 && t < 20 ? 'windup' : t >= 20 ? 'windup' : 'idle', t > 14 && t < 20 ? smooth(14, 17, t) * 0.8 : t >= 20 ? smooth(20, 23, t) : 0, t >= 20 ? 'brood' : 'children');
     const a = s.actors.get('matron');
-    if (a) a.input.extra = (an) => an.rig.rot('head', 0, 0, 0.35 * bump(9, 14, t));
+    if (a) a.input.extra = (an) => an.rig.rot('head', -0.16 * bump(13.5, 17.5, t) + 0.24 * bump(18, 22, t), 0.22 * bump(17.3, 22, t), 0.35 * bump(9, 14, t))
+      .rot('shoulderL', -0.36 * smooth(22.5, 25.5, t)).rot('elbowL', -0.31 * smooth(22.5, 25.5, t));
     for (const [k, r, sp, off] of [['m1', 4.2, 0.55, 0], ['m2', 5.4, -0.42, 2]] as const) {
       const ang = t * sp + off, x = Math.cos(ang) * r, z = -12 + Math.sin(ang) * r;
       const m = s.actors.get(k)!;
@@ -206,9 +211,9 @@ const MATRON_FALL: Script = {
   ],
   lines: [
     { at: 2.5, until: 6.5, text: 'The cage of bone breaks open.', kind: 'caption' },
-    { at: 7, until: 11, text: 'The lights she kept are free.', kind: 'caption' },
-    { at: 13, until: 16.8, speaker: 'Tuck', text: 'See where they went? Home. They went home.' },
-    { at: 17, until: 20.8, speaker: 'Tuck', text: 'Somewhere deeper, something just lost a little of its dark.' },
+    { at: 7, until: 11, text: 'For a moment the moths cling to the broken cage. One lifts off. The others follow.', kind: 'caption' },
+    { at: 13, until: 16.8, speaker: 'Tuck', text: 'See that one going back the way we came? Something down there’s been waiting up for it.' },
+    { at: 17, until: 20.8, speaker: 'Tuck', text: 'Hold still. That scrap of her veil’s landed on your finger. Let it settle. There you go.' },
   ],
   build(s) {
     s.actor('matron', MOTH_MATRON, 0, -11, 0, 0.6, 0.5);
@@ -258,8 +263,8 @@ const FLOWERS: Script = {
     { at: 1.8, until: 6, text: 'A field of lantern-flowers. Every one of them closed.', kind: 'caption' },
     { at: 7, until: 10.6, speaker: 'Tuck', text: 'Go on. Hold your hand near.' },
     { at: 12, until: 16, speaker: 'Tuck', text: 'See? It remembers. It wants to shine.' },
-    { at: 17, until: 21, speaker: 'Tuck', text: 'But there’s no light left in the wood to give it.' },
-    { at: 21.6, until: 26, speaker: 'Tuck', text: 'Someone gathered every light up. Someone with very big hands.' },
+    { at: 17, until: 21, speaker: 'Tuck', text: 'Look at the stem. It’s still green. It’s been waiting here longer than I have.' },
+    { at: 21.6, until: 26, speaker: 'Tuck', text: 'I saw someone gathering them before the rains. He knew which doors they’d grown beside. I thought he was taking them home.' },
   ],
   build(s) {
     hands(s);
@@ -364,7 +369,7 @@ const NAME: Script = {
   ],
   lines: [
     { at: 2, until: 6, text: 'Before it rose, the Star-Heart whispered.', kind: 'caption' },
-    { at: 7, until: 10.2, text: '“Elder Rowan.”', kind: 'whisper' },
+    { at: 7, until: 10.2, text: '“The Wanderer.”', kind: 'whisper' },
     { at: 11, until: 15, text: 'He came here on a morning when every lantern-flower burned.', kind: 'caption' },
     { at: 15.5, until: 20, text: 'The forest gave him a home. He never left.', kind: 'caption' },
   ],
@@ -404,7 +409,7 @@ const WARDEN_SCENE: Script = {
     { at: 7, until: 11, text: 'So he gathered them. Every one. To keep them safe.', kind: 'caption' },
     { at: 13, until: 17, text: 'And the more he kept, the colder the wood became.', kind: 'caption' },
     { at: 19, until: 23, text: 'Until nothing shone at all, except him.', kind: 'caption' },
-    { at: 25, until: 29.5, text: 'Rowan Hollowheart.', kind: 'whisper' },
+    { at: 25, until: 29.5, text: 'The Hollow.', kind: 'whisper' },
   ],
   build(s) {
     const w = s.actor('warden', WARDEN, -10, -6, Math.PI / 2, 0, 0.4);
@@ -539,7 +544,7 @@ const KINDLER: Script = {
     { at: 2, until: 6, text: 'When the last lantern-flower began to close…', kind: 'caption' },
     { at: 7.5, until: 11.5, text: '…the wood gathered everything it had left.', kind: 'caption' },
     { at: 12, until: 15.6, text: 'Every memory of morning. Every warm thing.', kind: 'caption' },
-    { at: 16, until: 19.2, text: 'And it made one more light.', kind: 'caption' },
+    { at: 16, until: 19.2, text: 'The last flower opened again. This time something inside it took a breath.', kind: 'caption' },
     { at: 20.5, until: 23.6, text: 'It made you.', kind: 'whisper' },
     { at: 24.5, until: 29.5, text: 'That is why your hands burn.', kind: 'caption' },
   ],
@@ -582,9 +587,9 @@ const KING: Script = {
     { t: 22, p: G(0.4, 5.2, -9.4), l: G(0, 6.6, -15), fov: 34 },
     { t: 31, p: G(0, 1.85, 6), l: G(0, 6, -16), fov: 58 },
   ],
-  title: { at: 16, until: 22, name: 'Rowan Hollowheart', subtitle: 'Who Swallowed Every Light' },
+  title: { at: 16, until: 22, name: 'The Hollow', subtitle: 'Who Forgot the Way Home' },
   lines: [
-    { at: 4, until: 8, speaker: 'Rowan Hollowheart', text: 'So. The last of them.' },
+    { at: 4, until: 8, speaker: 'The Hollow', text: 'So. The last of them.' },
     { at: 14.5, until: 18.5, text: 'The light in his chest is warm. The air around it is bitter cold.', kind: 'caption' },
   ],
   build(s) {
@@ -623,12 +628,12 @@ const ENDING: Script = {
   ],
   title: { at: 42, until: 48, name: 'The Hushwood Is Free', subtitle: 'Arcane' },
   lines: [
-    { at: 3, until: 7, speaker: 'Rowan Hollowheart', text: '…so warm.' },
-    { at: 8.5, until: 11.2, text: 'Every light, let go.', kind: 'caption' },
-    { at: 12.5, until: 16.5, speaker: 'Elder Rowan', text: 'Thank you. I was so afraid of the dark.' },
+    { at: 3, until: 7, speaker: 'The Hollow', text: '…so warm.' },
+    { at: 8.5, until: 11.2, text: 'His fingers open. Nothing follows when he pulls them away.', kind: 'caption' },
+    { at: 12.5, until: 16.5, speaker: 'The Wanderer', text: 'I thought I’d hear them calling for me. Listen. They’re finding their own way home.' },
     { at: 19, until: 23, text: 'The Hushwood remembers its colours.', kind: 'caption' },
     { at: 25, until: 28.6, speaker: 'Tuck', text: 'Look at it! LOOK at it!' },
-    { at: 31, until: 35, text: 'Every lantern-flower is open. Every light is home.', kind: 'caption' },
+    { at: 31, until: 35, text: 'The flowers by the doors are opening. Someone will be able to walk home after dark again.', kind: 'caption' },
     { at: 37, until: 41, text: 'Thank you, Kindler.', kind: 'whisper' },
   ],
   build(s) {

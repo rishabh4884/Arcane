@@ -10,7 +10,7 @@ import type { ForestEnvironment } from './ForestEnvironment.ts';
 import type { ParticleSystem } from './particles.ts';
 import { ellipsoid, fbm3, lathe, mulberry, tube, type V3 } from './rig/Body.ts';
 import { FIGURE_LIGHT } from './rig/figureMaterial.ts';
-import { terrainHeight } from './spatial.ts';
+import { terrainHeight, type Obstacle } from './spatial.ts';
 import { glowSprite } from './vfx.ts';
 
 /**
@@ -29,7 +29,7 @@ export type SetPiece =
   | 'stile' | 'market' | 'warcamp' | 'bower' | 'chapel' | 'coils' | 'heartwood' | 'gallery' | 'lanterns' | 'coldfire'
   | 'orchard' | 'webs' | 'antlerhall' | 'loom' | 'bellfields' | 'origin' | 'lastflower' | 'throne';
 
-export interface RegionSpec { key: RegionKey; depth: number; set?: SetPiece; seed: number }
+export interface RegionSpec { key: RegionKey; depth: number; set?: SetPiece; seed: number; route?: 'aisle' | 'grove' | 'canopy' }
 
 const SETS: Partial<Record<number, SetPiece>> = {
   5: 'stile', 8: 'market', 9: 'warcamp', 10: 'bower', 15: 'chapel', 19: 'coils', 20: 'heartwood', 22: 'gallery',
@@ -39,7 +39,12 @@ const CHAPTER_REGION: Record<number, RegionKey> = { 1: 'edge', 2: 'fen', 3: 'dee
 
 export function regionFor(level: LevelDef): RegionSpec {
   const last = LEVELS.find((candidate) => candidate.chapter === level.chapter && candidate.kind === 'final')!.index;
-  return { key: CHAPTER_REGION[level.chapter], depth: (level.index - 1) / (last - 1), set: SETS[level.legacyId ?? 0], seed: level.id * 7919 };
+  const set = SETS[level.legacyId ?? 0];
+  const route = !set && !level.trial && level.id > 1
+    ? level.name === 'The Wood Without Sky' || level.index % 4 === 3 ? 'canopy'
+      : level.index % 3 === 0 ? 'grove' : 'aisle'
+    : undefined;
+  return { key: CHAPTER_REGION[level.chapter], depth: (level.index - 1) / (last - 1), set, seed: level.id * 7919, route };
 }
 
 /** Regions for cutscenes and the menu, by name. */
@@ -143,6 +148,7 @@ export function paintedAir(key: RegionKey): string {
 const MIST_TINTS: Record<RegionKey, string> = { edge: '#ffffff', fen: '#f2fff0', deeps: '#6f8a94', throne: '#e8e4f0', dawn: '#ffe6c4' };
 
 export class Regions {
+  private readonly routeObstacles: Obstacle[] = [];
   readonly group = new THREE.Group();
   private current = '';
   private animated: Array<(t: number, dt: number) => void> = [];
@@ -155,7 +161,7 @@ export class Regions {
   get key(): string { return this.current; }
 
   apply(spec: RegionSpec): void {
-    const id = `${spec.key}:${spec.set ?? ''}:${Math.round(spec.depth * 9)}`;
+    const id = `${spec.key}:${spec.set ?? ''}:${spec.seed}:${spec.route ?? ''}`;
     if (id === this.current) return;
     this.clear();
     this.current = id;
@@ -182,6 +188,7 @@ export class Regions {
     INK.uLitColor.value.set(ink[0]); INK.uMidColor.value.set(ink[1]); INK.uShadeColor.value.set(ink[2]); INK.uRimColor.value.set(ink[3]);
     INK.uDaylight.value = spec.key === 'dawn' ? 1 : 0;
     if (spec.set) this.set(spec.set, rng);
+    if (spec.route) this.trail(spec, spec.route, rng);
     if (DRAWN_LOOK) drawn(this.group);
   }
 
@@ -191,6 +198,11 @@ export class Regions {
   }
 
   clear(): void {
+    for (const obstacle of this.routeObstacles) {
+      const index = this.env.obstacles.indexOf(obstacle);
+      if (index >= 0) this.env.obstacles.splice(index, 1);
+    }
+    this.routeObstacles.length = 0;
     this.animated = [];
     this.group.traverse((o) => {
       if (o instanceof THREE.Mesh || o instanceof THREE.Points || o instanceof THREE.LineSegments) {
@@ -204,6 +216,46 @@ export class Regions {
   }
 
   private add<T extends THREE.Object3D>(o: T): T { this.group.add(o); return o; }
+
+  private trail(spec: RegionSpec, route: NonNullable<RegionSpec['route']>, rng: () => number): void {
+    const trunks: THREE.BufferGeometry[] = [], crowns: THREE.BufferGeometry[] = [];
+    const colors: Record<Exclude<RegionKey, 'dawn'>, [string, string]> = {
+      edge: ['#594b38', '#495b38'], fen: ['#676956', '#3d5041'],
+      deeps: ['#4b3937', '#3b4940'], throne: ['#868076', '#3f4443'],
+    };
+    const [bark, leaves] = colors[spec.key === 'dawn' ? 'edge' : spec.key];
+    const closed = route === 'canopy';
+    const count = closed ? 8 : route === 'grove' ? 6 : 4;
+    for (let i = 0; i < count; i++) {
+      const sign = i % 2 === 0 ? -1 : 1;
+      const z = 12 - Math.floor(i / 2) * (closed ? 7.9 : 11.4) + (rng() - 0.5) * 4;
+      const x = sign * ((closed ? 5.4 : route === 'grove' ? 8.7 : 11.5) + rng() * 2.7);
+      const base = terrainHeight(x, z), height = 8 + rng() * 4.5, radius = 0.52 + rng() * 0.55;
+      const lean = -sign * (closed ? 2.1 + rng() * 1.9 : (rng() - 0.3) * 1.9);
+      const top: V3 = [x + lean, base + height, z - 1.2];
+      trunks.push(rough(tube([[x, base - 0.18, z], [x + lean * 0.14, base + 2, z + 0.25], [x + lean * 0.53, base + height * 0.62, z], top], [radius * 1.42, radius, radius * 0.55, 0.075], { radial: 12, segments: 16 }), radius * 0.13, 1.35, 0.38));
+      for (let j = 0; j < 4; j++) {
+        const a = j * Math.PI * 0.5 + rng(), length = 1.25 + rng() * 1.4;
+        const tx = x + Math.cos(a) * length, tz = z + Math.sin(a) * length;
+        trunks.push(tube([[x, base + radius * 0.78, z], [(tx + x) * 0.5, base + radius * 0.28, (tz + z) * 0.5], [tx, terrainHeight(tx, tz) - 0.06, tz]], [radius * 0.42, radius * 0.24, 0.025], { radial: 7, segments: 8 }));
+      }
+      for (let j = 0; j < 3; j++) {
+        const delta = (j - 0.9) * (closed ? 2.1 : 1.7);
+        const from: V3 = [x + lean * 0.57, base + height * (0.63 + j * 0.07), z - j * 0.17];
+        const end: V3 = [top[0] + delta, top[1] - 0.7 + rng() * 0.9, top[2] + (rng() - 0.5) * 3];
+        trunks.push(tube([from, [(from[0] + end[0]) * 0.5, end[1] - 0.5, from[2]], end], [radius * 0.34, radius * 0.16, 0.032], { radial: 8, segments: 10 }));
+        if (spec.key !== 'fen' || closed) {
+          crowns.push(ellipsoid(end, [2.3 + rng(), 1.16 + rng() * 0.65, 2.3 + rng()], { widthSegments: 16, heightSegments: 11,
+            deform: (d, p) => p.multiplyScalar(1 + 0.11 * Math.sin(d.x * 7.8 + i) * Math.cos(d.z * 6.5 + j) + 0.08 * Math.sin(d.y * 9.2 + i * 0.6)) }));
+        }
+      }
+      const obstacle = { x, z, radius, height };
+      this.routeObstacles.push(obstacle);
+      this.env.obstacles.push(obstacle);
+    }
+    this.merged(trunks, std(bark));
+    this.merged(crowns, std(leaves));
+  }
 
   private dropProps(): void {
     for (const o of [...this.group.children]) {

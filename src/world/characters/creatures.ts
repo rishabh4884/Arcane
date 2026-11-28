@@ -12,14 +12,18 @@ import { biped, blink, bump, clamp, idleLife, lookAt, smooth, TAU, type Anim } f
  */
 
 /** Four legs: a trot at walking pace (diagonal pairs), a bounding gallop when charging. */
-export function quadruped(a: Anim, o: { stride: number; knee: number; bob: number; gallop?: number }): void {
+export function quadruped(a: Anim, o: { stride: number; knee: number; bob: number; gallop?: number; measured?: boolean }): void {
   const r = a.rig, w = a.move * a.life, ph = a.phase * TAU, gal = o.gallop ?? 0;
   const legs: Array<[string, number]> = [['fL', 0], ['hR', 0], ['fR', Math.PI], ['hL', Math.PI]];
   for (const [leg, off] of legs) {
     // A gallop pairs the front legs and the hind legs instead of the diagonals.
-    const offset = gal > 0.5 ? (leg[0] === 'f' ? 0 : Math.PI * 0.7) + (leg.endsWith('R') ? 0.35 : 0) : off;
+    const offset = gal > 0.5 ? (leg[0] === 'f' ? 0 : Math.PI * 0.72) + (leg.endsWith('R') ? 0.48 : 0)
+      : o.measured ? (leg[0] === 'f' ? Math.PI * 0.55 : 0) + (leg.endsWith('R') ? Math.PI : 0) : off;
     const phi = ph + offset;
-    const swing = Math.sin(phi), lift = Math.max(0, Math.cos(phi));
+    const cycle = ((phi / TAU) % 1 + 1) % 1;
+    const flight = gal > 0.5 ? 0.56 : 0.37;
+    const swing = o.measured ? cycle < flight ? -1 + 2 * smooth(0, flight, cycle) : 1 - 2 * (cycle - flight) / (1 - flight) : Math.sin(phi);
+    const lift = o.measured ? cycle < flight ? Math.sin(Math.PI * cycle / flight) ** 1.5 : 0 : Math.max(0, Math.cos(phi));
     const front = leg[0] === 'f';
     const side = leg.slice(1);
     r.rot(`${leg[0]}thigh${side}`, (-swing * o.stride * a.fwd - lift * 0.3) * w, 0, swing * o.stride * 0.6 * a.side * w);

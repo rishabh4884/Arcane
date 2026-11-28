@@ -1058,7 +1058,7 @@ export class World {
         const flank = this.encounter.flankBearing();
         if (flank !== null) this.controls.lookAside(flank);
       }
-      this.controls.update(dt, this.environment.obstacles, this.reducedMotion.matches);
+      this.controls.update(dt, this.environment.obstacles, this.reducedMotion.matches, this.encounter.groundThreat());
     }
     this.updateHush(paused ? 0 : dt);
     // In a hush the wood slows almost to a stop rather than freezing: the stillness feels held.

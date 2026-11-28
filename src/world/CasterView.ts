@@ -18,6 +18,7 @@ export class CasterView {
   private lookTime = 0;
   private lookAngle = 0;
   private angle = 0;
+  private dip = 0;
 
   constructor(private readonly camera:THREE.PerspectiveCamera,canvas:HTMLCanvasElement){
     canvas.tabIndex=0;canvas.setAttribute('role','img');
@@ -29,7 +30,7 @@ export class CasterView {
     this.base.set(SPAWN.x,terrainHeight(SPAWN.x,SPAWN.z)+EYE_HEIGHT,SPAWN.z);
     this.camera.position.copy(this.base);
     this.camera.lookAt(0,1.2,-12);this.camera.updateMatrixWorld(true);
-    this.advanceTime = this.advanceDuration = this.lookTime = this.angle = 0;
+    this.advanceTime = this.advanceDuration = this.lookTime = this.angle = this.dip = 0;
   }
 
   get canLookAside(): boolean { return this.lookTime <= 0 && Math.abs(this.angle) < 0.09 && this.advanceTime >= this.advanceDuration; }
@@ -46,7 +47,7 @@ export class CasterView {
     this.lookTime = 4.2;
   }
 
-  update(dt: number, obstacles: readonly Obstacle[], reduced: boolean): void {
+  update(dt: number, obstacles: readonly Obstacle[], reduced: boolean, groundThreat: number): void {
     const old = this.advanceTime;
     this.advanceTime = Math.min(this.advanceDuration, old + dt);
     const moving = this.advanceTime < this.advanceDuration;
@@ -56,12 +57,13 @@ export class CasterView {
     }
     this.lookTime = Math.max(0, this.lookTime - dt);
     this.angle = THREE.MathUtils.damp(this.angle, this.lookTime > 0.85 ? this.lookAngle : 0, reduced ? 3.2 : 5.2, dt);
+    this.dip = THREE.MathUtils.damp(this.dip, groundThreat, 3.5, dt);
     const phase = this.advanceTime / Math.max(0.01, this.advanceDuration);
     const motion = !reduced && moving ? Math.sin(Math.PI * phase) : 0;
     const step = this.advanceTime * (this.hop ? 15 : 10);
     this.camera.position.copy(this.base);
     this.camera.position.y += Math.cos(step) * 0.065 * motion + this.hop * Math.max(0, 1 - Math.abs(phase - 0.54) * 8) ** 2 * 0.31 * motion;
-    this.pivot.set(Math.sin(this.angle) * 20, -0.38, -Math.cos(this.angle) * 20).add(this.camera.position);
+    this.pivot.set(Math.sin(this.angle) * 20, -0.38 - this.dip * 3.6, -Math.cos(this.angle) * 20).add(this.camera.position);
     this.camera.lookAt(this.pivot);
     this.camera.rotateZ(motion * Math.sin(step * 0.5) * 0.018);
     this.camera.updateMatrixWorld(true);

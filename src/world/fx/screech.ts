@@ -70,7 +70,7 @@ export function screech(_origin: THREE.Vector3, color: THREE.Color, ctx: SpellCo
     wave.add(ring);
     const arcMaterial = new THREE.MeshBasicMaterial({ color: bone, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
     const arcs = k < 3 ? Array.from({ length: 4 + k * 2 }, () => wailArc(random, arcMaterial)) : [];
-    wave.add(...arcs);
+    for (const arc of arcs) wave.add(arc);
     wave.visible = false;
     wave.renderOrder = 8;
     group.add(wave);

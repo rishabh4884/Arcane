@@ -50,6 +50,8 @@ interface Actor extends Foe {
   elder: boolean;
   /** Thrown back by a scream: slides away from the caster, slowing. */
   knock: { dir: THREE.Vector3; speed: number } | null;
+  snared: number;
+  dazzled: number;
   /** 0..1 lasting rage (the Widow, for every egg of hers broken). */
   anger: number;
 }
@@ -295,6 +297,21 @@ export class Encounter {
     return best;
   }
 
+  /** Tilt toward low threats before they pass under the edge of the frame. */
+  groundThreat(): number {
+    if (this.mode !== 'wave' && this.mode !== 'boss') return 0;
+    let dip = 0;
+    for (const a of this.actors) {
+      if (!a.state.alive || a.spec.height > 1.8 || a.altitude > 0.85 || a.kind === 'egg') continue;
+      const p = a.figure.group.position;
+      const x = p.x - this.camera.position.x, z = p.z - this.camera.position.z;
+      if (x * this.viewForward.x + z * this.viewForward.z < 0) continue;
+      const distance = Math.hypot(x, z);
+      dip = Math.max(dip, THREE.MathUtils.clamp((5.5 - distance) / 3.5, 0, 1));
+    }
+    return dip;
+  }
+
   private beginBoss(): void {
     const level = this.level!;
     this.setMode('boss-intro');
@@ -425,7 +442,8 @@ export class Encounter {
     const actor: Actor = {
       id: this.nextId++, kind, spec, figure, state: new CreatureState(kind, scaling, this.nextId * 7919 + this.generation), boss: spec.rank !== 'normal',
       velocity: new THREE.Vector3(), phase: Math.random() * 10, strafe: Math.random() < 0.5 ? -1 : 1, strafeTimer: 1 + Math.random() * 2,
-      lastPose: 'idle', warning, rush: null, altitude: spec.hover ?? 0, burnTick: 0, bossPhase: 0, haste: 1, blink: null, removeAt: -1, elder, knock: null, anger: 0,
+      lastPose: 'idle', warning, rush: null, altitude: spec.hover ?? 0, burnTick: 0, bossPhase: 0, haste: 1, blink: null, removeAt: -1,
+      elder, knock: null, anger: 0, snared: 0, dazzled: 0,
     };
     if ((boss && level?.trial) || kind === 'egg') actor.state.passive = true;
     this.actors.push(actor);
@@ -595,8 +613,8 @@ export class Encounter {
       case 'roots': {
         const at = aimFoe ? (aimFoe as Actor).figure.group.position.clone() : aimPoint.clone().setY(terrainHeight(aimPoint.x, aimPoint.z));
         points.push(at.clone());
-        delays.push(0.55);
-        for (const a of this.actors) if (a.state.alive && a.figure.group.position.distanceTo(at) < 2.6 + a.spec.radius) this.queued.push({ foe: a, effect, at: this.time + 0.55, point: this.centre(a, new THREE.Vector3()), generation: this.generation });
+        delays.push(0.32);
+        for (const a of this.actors) if (a.state.alive && a.figure.group.position.distanceTo(at) < 2.6 + a.spec.radius) this.queued.push({ foe: a, effect, at: this.time + 0.32, point: this.centre(a, new THREE.Vector3()), generation: this.generation });
         return { points, delays };
       }
       case 'blade': case 'quake': case 'stag': {
@@ -612,7 +630,7 @@ export class Encounter {
         near.forEach((a, i) => queue(a, 1.35 + i * 0.14 + a.figure.group.position.distanceTo(this.camera.position) * 0.012));
         return { points, delays };
       }
-      case 'flare': for (const a of this.visible()) queue(a, 0.25); return { points, delays };
+      case 'flare': for (const a of this.visible()) if (this.inView(a) && this.lineOfSight(a)) queue(a, 0.25); return { points, delays };
       case 'tide': {
         // The serpent swims for the main quarry (the aimed one, else the greatest, else the nearest);
         // when it breaks there, the wave rolls out over the rest. The main target is always first.
@@ -663,6 +681,20 @@ export class Encounter {
     if (effect === 'fire' && a.kind !== 'egg') { a.state.burn = 4; a.burnTick = 1; }
     if (effect === 'roots' || effect === 'quake') a.state.rootFor(effect === 'roots' ? 4 : 1.2);
     if (effect === 'flare' || effect === 'quake') a.state.stunFor(effect === 'flare' ? 1.8 : 1);
+    if (a.state.alive && a.kind !== 'egg') {
+      if (effect === 'roots') {
+        a.snared = a.boss ? 1.25 : 3.65;
+        a.state.stunFor(a.boss ? 2.5 : a.snared);
+        a.rush = null;
+        a.blink = null;
+        a.knock = null;
+      }
+      if (effect === 'flare') {
+        a.dazzled = a.boss ? 0.9 : 1.8;
+        a.rush = null;
+        a.blink = null;
+      }
+    }
     if (effect === 'tide') this.push(a, 4);
     if (effect === 'screech' && a.state.alive && a.kind !== 'egg') {
       a.state.interrupt();
@@ -670,7 +702,9 @@ export class Encounter {
       const p = a.figure.group.position;
       const dir = new THREE.Vector3(p.x - this.camera.position.x, 0, p.z - this.camera.position.z).normalize();
       // Speed decays at 4/s, so the slide covers speed / 4 metres.
-      a.knock = { dir, speed: a.boss ? 8 : 22 };
+      a.blink = null;
+      a.rush = null;
+      a.knock = { dir, speed: a.boss ? 12 : 29 };
     }
     a.figure.hit(Math.min(2, a.kind === 'egg' ? 0.6 : base / 40));
     if (effect === 'frost') a.figure.u.uFlashColor.value.set('#bfe3ff');
@@ -784,6 +818,8 @@ export class Encounter {
     const distance = Math.hypot(dx, dz) || 0.001;
     dx /= distance; dz /= distance;
     const emerging = a.figure.fade > 0.25 && a.state.alive;
+    a.snared = Math.max(0, a.snared - dt);
+    a.dazzled = Math.max(0, a.dazzled - dt);
     const los = this.lineOfSight(a);
     const inView = this.inView(a);
     const strike = !emerging && a.state.update(dt * a.haste, inView ? distance : Infinity, los, fighting || !a.state.alive);
@@ -835,12 +871,20 @@ export class Encounter {
       const want = a.state.pose === 'windup' ? spec.hover + 0.9 : a.state.pose === 'strike' && a.rush ? 0.8 : spec.hover + Math.sin(this.time * 0.9 + a.phase) * 0.5;
       a.altitude += (want - a.altitude) * Math.min(1, dt * (a.state.pose === 'strike' ? 5 : 1.5));
       if (!a.state.alive) a.altitude = Math.max(0.2, a.altitude - dt * 1.5);
+      if (a.snared > 0) a.altitude = Math.max(0, a.altitude - dt * 14);
     }
+    const pin = a.snared > 0 ? Math.min(1, ((a.boss ? 1.25 : 3.65) - a.snared) * 5, a.snared * 3.6) : 0;
+    const search = a.dazzled > 0 ? Math.sin((1.8 - a.dazzled) * 6) * Math.min(1, a.dazzled * 4) : 0;
     a.figure.update(dt, {
-      pose: entering ? 'walk' : a.state.pose, progress: a.state.progress, attack: a.state.attack.id, velocity: a.velocity, faceYaw,
+      pose: entering ? 'walk' : a.state.alive && (a.dazzled > 0 || a.snared > 0) ? 'idle' : a.state.pose,
+      progress: a.state.progress, attack: a.state.attack.id, velocity: a.velocity, faceYaw,
       look: this.camera.position, groundY: p.y + (spec.hover ? a.altitude : 0), reducedMotion, anger: a.anger,
-      extra: line ? (pose) => actBossDialogue(a.kind, this.dialogueIndex, 1 - (this.dialogueUntil - this.modeTime) / line.seconds, pose) : undefined,
+      extra: line ? (pose) => actBossDialogue(a.kind, this.dialogueIndex, 1 - (this.dialogueUntil - this.modeTime) / line.seconds, pose)
+        : search && a.state.alive ? (pose) => pose.rig.rot('head', -0.18, search * 0.72, search * 0.19)
+          .rot('neck', 0, search * 0.19).rot('spine', -0.11, search * 0.18).rotPair('shoulder', -0.31, 0, 0.3) : undefined,
     });
+    a.figure.lift.rotation.x = pin * (a.boss ? 0.29 : 1.44);
+    if (pin > 0) a.figure.lift.position.y += pin * (a.boss ? -0.2 : 0.1);
     if (spec.hover) a.figure.lift.position.y += a.altitude;
     if (a.blink) a.figure.u.uDissolve.value = a.blink.age < 0.45 ? a.blink.age / 0.45 : Math.max(0, 1 - (a.blink.age - 0.45) / 0.45);
     // Wind-up warning on the ground.
@@ -857,8 +901,9 @@ export class Encounter {
   private inView(a: Actor): boolean {
     if (this.level?.trial) return true;
     const view = this.centre(a, this.viewPoint).applyMatrix4(this.camera.matrixWorldInverse);
-    const halfWidth = -view.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5)) * this.camera.aspect;
-    return view.z < -0.5 && Math.abs(view.x) < halfWidth * 0.96 + a.spec.radius * 0.35;
+    const halfHeight = -view.z * Math.tan(THREE.MathUtils.degToRad(this.camera.fov * 0.5));
+    return view.z < -0.5 && Math.abs(view.x) < halfHeight * this.camera.aspect * 0.96 + a.spec.radius * 0.35
+      && Math.abs(view.y) < halfHeight + 0.38 * a.spec.height;
   }
 
   private lineOfSight(a: Actor): boolean {

@@ -57,17 +57,17 @@ export class LoadingScreen {
     this.enter = button('Enter the Hushwood', onEnter, 'g-button g-button--primary load-enter', ui);
     this.enter.hidden = true;
     this.root.append(
-      this.motes,
       // The title card sits on the painted Edge, as a series opens on its first background.
       el('div', { class: 'load-painting', 'aria-hidden': 'true', style: { backgroundImage: `url(${import.meta.env.BASE_URL}art/sets/edge/paint.webp)` } }),
+      this.motes,
+      el('div', { class: 'load-bars', 'aria-hidden': 'true' }),
       el('div', { class: 'load-center' },
-        el('p', { class: 'load-eyebrow' }, 'A dark fairy-tale adventure'),
         title,
-        el('p', { class: 'load-tag' }, 'Something in the wood is listening. Keep your hands where it can see them.'),
         el('div', { class: 'load-meter', role: 'progressbar', 'aria-label': 'Loading' }, this.bar),
         this.label,
         this.enter,
       ),
+      el('p', { class: 'load-warning' }, 'Photosensitivity warning. Contains bright flashes and sudden camera movement.'),
     );
     this.root.hidden = false;
     this.drawMotes();
@@ -93,8 +93,8 @@ export class LoadingScreen {
   /** Drifting embers behind the title. */
   private drawMotes(): void {
     const c = this.motes, g = c.getContext('2d');
-    if (!g) return;
-    const motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), r: 0.6 + Math.random() * 1.8, s: 0.01 + Math.random() * 0.03, p: Math.random() * 6 }));
+    if (!g || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const motes = Array.from({ length: 42 }, () => ({ x: Math.random(), y: Math.random(), r: 0.5 + Math.random() * 1.3, s: 0.01 + Math.random() * 0.022, p: Math.random() * 6 }));
     const frame = (time: number) => {
       // Resizing a canvas reallocates it; only do so when the screen actually changed size.
       const w = Math.round(c.clientWidth * devicePixelRatio), h = Math.round(c.clientHeight * devicePixelRatio);
@@ -198,12 +198,13 @@ export class JourneyScreen {
       const done = levels.filter((l) => progress.isComplete(l.id)).length;
       const open = progress.isUnlocked(levels[0].id);
       const path = el('div', { class: 'chapter-path' });
-      // A winding path through the chapter's ten levels.
+      const pathX = (index: number) => 5 + index * (90 / Math.max(1, levels.length - 1));
+      // A winding path through the reach.
       const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       svg.setAttribute('viewBox', '0 0 1000 160');
       svg.setAttribute('preserveAspectRatio', 'none');
       svg.setAttribute('class', 'chapter-line');
-      const d = levels.map((_, i) => `${i ? 'L' : 'M'}${50 + i * 100},${80 + Math.sin(i * 1.3 + chapter.id) * 46}`).join(' ');
+      const d = levels.map((_, i) => `${i ? 'L' : 'M'}${pathX(i) * 10},${80 + Math.sin(i * 1.3 + chapter.id) * 46}`).join(' ');
       const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
       line.setAttribute('d', d);
       svg.append(line);
@@ -215,7 +216,7 @@ export class JourneyScreen {
         const node = el('button', {
           class: `level-node level-node--${level.kind}${complete ? ' is-done' : ''}${unlocked ? '' : ' is-locked'}${progress.frontier.id === level.id ? ' is-next' : ''}`,
           type: 'button', 'aria-label': `Level ${level.id}: ${level.name}${unlocked ? '' : ' (locked)'}`,
-          style: { left: `${5 + i * 10}%`, top: `${(80 + Math.sin(i * 1.3 + chapter.id) * 46) / 1.6}%` },
+          style: { left: `${pathX(i)}%`, top: `${(80 + Math.sin(i * 1.3 + chapter.id) * 46) / 1.6}%` },
         },
         el('span', { class: 'node-num' }, level.kind === 'final' ? '♛' : level.kind === 'sub' ? '✦' : String(level.index)),
         el('span', { class: 'node-stars' }, complete ? '★'.repeat(record?.stars ?? 1) : ''));
@@ -230,7 +231,7 @@ export class JourneyScreen {
         el('header', { class: 'chapter-head' },
           el('span', { class: 'chapter-numeral' }, chapter.numeral),
           el('div', {}, el('h3', {}, chapter.name), el('p', {}, open ? chapter.blurb : 'Sealed. Defeat the ruler of the reach before it.')),
-          el('span', { class: 'chapter-count' }, `${done} / 10`)),
+          el('span', { class: 'chapter-count' }, `${done} / ${levels.length}`)),
         path));
     }
     this.card.hidden = true; this.opener = null;

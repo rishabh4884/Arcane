@@ -17,20 +17,20 @@ function stageHands(s: Shot): void {
   s.onDispose(() => hands.group.removeFromParent());
 }
 
-const palm = (s: Shot) => s.camera.localToWorld(new THREE.Vector3(0.14, -0.11, -0.5));
+const palm = (s: Shot) => s.get('hands').bones.handR.localToWorld(new THREE.Vector3(0, 0.013, -0.026));
 const luminance = new THREE.Color('#ffd684');
 
 const widowGift: Script = {
   id: 'widow-gift', region: 'loom', mood: 'deeps', duration: 18,
   camera: [
-    { t: 0, p: G(1.6, 0.88, -4.7), l: G(0, 1.1, -8.5), fov: 58 },
-    { t: 8, p: G(1.15, 0.76, -5.8), l: G(0, 0.85, -8.35), fov: 51 },
-    { t: 18, p: G(1.15, 0.76, -5.8), l: G(0, 0.57, -8.35), fov: 51 },
+    { t: 0, p: G(1.65, 1.07, -3.2), l: G(0, 1.2, -8.7), fov: 58 },
+    { t: 8, p: G(1.4, 0.91, -4.2), l: G(0, 1.15, -8.4), fov: 54 },
+    { t: 18, p: G(1.4, 0.91, -4.2), l: G(0, 0.96, -8.4), fov: 54 },
   ],
   lines: [
-    { at: 1.8, until: 5.7, speaker: 'The Lantern Widow', text: 'Under the longest root. There are two left.' },
-    { at: 5.9, until: 9.5, speaker: 'The Lantern Widow', text: 'Please. Take them somewhere the wind can’t reach.' },
-    { at: 9.7, until: 13.8, speaker: 'The Lantern Widow', text: 'I’ve held this hurt inside so long. Let it out for me.' },
+    { at: 1.2, until: 5.2, speaker: 'The Lantern Widow', kind: 'whisper', text: 'Under the longest root. Cup your hands before you touch them. They startle so easily.' },
+    { at: 5.5, until: 9.8, speaker: 'The Lantern Widow', kind: 'whisper', text: 'Once they hear rain, they’ll think I’m coming. Please take them somewhere dry before it starts again.' },
+    { at: 10.2, until: 15.9, speaker: 'The Lantern Widow', kind: 'whisper', text: 'I swallowed every cry so I wouldn’t wake them. There’s no room left in me now. Take it. You don’t have to keep it quiet.' },
   ],
   build(s) {
     s.actor('widow', WIDOW, 0, -9, 0, 0, 0.5);
@@ -38,9 +38,9 @@ const widowGift: Script = {
     s.actor('brood-b', EGG, -2.7, -8.3, 0, 0, 0.8);
     stageHands(s);
     const drops = Array.from({ length: 13 }, (_, i) => {
-      const bead = new THREE.Mesh(new THREE.SphereGeometry(0.045 + (i % 3) * 0.01, 12, 8),
+      const bead = new THREE.Mesh(new THREE.SphereGeometry(0.013 + (i % 3) * 0.004, 12, 8),
         new THREE.MeshStandardMaterial({ color: '#5c1527', emissive: '#a92141', emissiveIntensity: 0.6, roughness: 0.28 }));
-      const ribbon = new Trail(i % 3 ? '#8e1228' : '#ed4755', 0.03, 0.26, 24, 0.4);
+      const ribbon = new Trail(i % 3 ? '#8e1228' : '#ed4755', 0.028, 0.34, 24, 0.4);
       s.trails.push(ribbon);
       s.root.add(ribbon.mesh, bead);
       return { bead, ribbon };
@@ -51,7 +51,17 @@ const widowGift: Script = {
   tick(s, t) {
     s.act('widow', 'dead', 0.46 + 0.45 * smooth(0, 4, t));
     s.get('widow').overrides.dissolve = 0.08 + 0.12 * smooth(14, 18, t);
+    const lookToBrood = bump(1.4, 8.6, t), surrender = smooth(10.2, 14.8, t);
+    s.actors.get('widow')!.input.extra = (a) => {
+      a.rig.pos('hips', 0, -0.62, 0).rot('abd', 0.15).rot('spine', 0.26, 0, -0.13)
+        .rot('head', -0.21 * lookToBrood, -0.43 * lookToBrood, -0.11 * surrender)
+        .rotPair('fang', Math.sin(t * 19) * 0.08 * (lookToBrood + bump(10.3, 15.7, t)));
+      for (let leg = 1; leg <= 4; leg++) a.rig.rotPair(`leg${leg}`, 0.18, 0.2 - leg * 0.07, 0.12)
+        .rotPair(`knee${leg}`, -0.24 - leg * 0.045, 0, 0.27);
+    };
     s.act('hands', 'strike', smooth(8.5, 11, t));
+    s.actors.get('hands')!.input.extra = (a) => a.rig.rotPair('wrist', -0.16 * lookToBrood, 0.21 * surrender)
+      .rot('wristR', Math.sin(t * 24) * 0.13 * bump(12.8, 16.3, t));
     const from = s.at(0, -7.5, 0.58), to = palm(s);
     widowDrops.get(s)?.forEach(({ bead, ribbon }, i) => {
       const start = 11.4 + i * 0.14;
@@ -59,8 +69,9 @@ const widowGift: Script = {
       const k = smooth(start, end, t);
       const splay = Math.sin(Math.PI * k);
       const shiver = Math.sin(Math.floor(t * 36) + i * 0.9) * splay;
-      const at = from.clone().lerp(to, k).add(new THREE.Vector3(shiver * 0.19, splay * 0.68 + Math.sin(t * 21 + i) * splay * 0.12, shiver * 0.15));
+      const at = from.clone().lerp(to, k).add(new THREE.Vector3(shiver * 0.075, splay * 0.47 + Math.sin(t * 21 + i) * splay * 0.07, shiver * 0.07));
       bead.position.copy(at);
+      bead.scale.set(1 - 0.49 * k, 1.5 + Math.abs(shiver) * 1.4, 1 - 0.49 * k);
       bead.visible = t > start && t < end;
       ribbon.opacity = bead.visible ? 0.72 * (1 - smooth(0.8, 1, k)) : 0;
       if (bead.visible) ribbon.push(at);
@@ -74,12 +85,12 @@ const graelGift: Script = {
   id: 'grael-gift', region: 'heartwood', mood: 'fen', duration: 17,
   camera: [
     { t: 0, p: G(3, 2.1, -1), l: G(0, 2.9, -11), fov: 58 },
-    { t: 6.5, p: G(1.9, 1.5, -4), l: G(0, 0.65, -10), fov: 52 },
-    { t: 17, p: G(1.9, 1.5, -4), l: G(0, 0.65, -10), fov: 52 },
+    { t: 6.5, p: G(1.8, 1.55, -1.7), l: G(0, 1.03, -10), fov: 55 },
+    { t: 17, p: G(1.8, 1.55, -1.7), l: G(0, 1.03, -10), fov: 55 },
   ],
   lines: [
-    { at: 2, until: 6, text: 'The first roots he planted stir under him.', kind: 'caption' },
-    { at: 13, until: 16.8, text: 'His last spring is warm against your skin.', kind: 'caption' },
+    { at: 1.8, until: 6.6, text: 'The ground moves under his hand. In the little hollow where his fingers rested, a green shoot pushes through.', kind: 'caption' },
+    { at: 13, until: 16.8, text: 'You wait for the petals to wilt. They go soft as wax instead, and the warmth stays under your skin.', kind: 'caption' },
   ],
   build(s) {
     s.actor('grael', GRAEL, 0, -11, 0, 0, 0.4);
@@ -103,8 +114,11 @@ const graelGift: Script = {
       const open = smooth(1 + i * 0.15, 3.4 + i * 0.15, t);
       flower.set(open, open * (1 - smooth(13, 17, t)) * 0.8, t);
     });
-    garden[0].group.position.copy(from).lerp(to, take).y += 1.9 * Math.sin(take * Math.PI);
-    garden[0].group.scale.set((1 + melt * 0.6) * (1 - melt), Math.max(0.01, 1 - 0.92 * melt), 1 - melt);
+    const blossom = garden[0].group;
+    const size = 1 - 0.78 * smooth(7.5, 12.1, t);
+    blossom.position.copy(from).lerp(to, take).y += 1.25 * Math.sin(take * Math.PI) - 0.2 * take * size;
+    blossom.rotation.z = -0.36 * Math.sin(take * Math.PI) - melt * 0.72;
+    blossom.scale.set(size * (1 + melt * 0.5) * (1 - melt), Math.max(0.001, size * (1 - melt) ** 2), size * (1 - melt));
     honey.place(to);
     honey.sprite.material.opacity = bump(12, 16, t);
     s.stage.illuminate(0, garden[0].group.position, luminance, bump(2, 16.8, t) * 2.1, 7);
@@ -120,8 +134,8 @@ const stagFall: Script = {
     { t: 14, p: G(2.3, 1.9, -3), l: G(-3.5, 2.4, -14), fov: 58 },
   ],
   lines: [
-    { at: 5, until: 8.7, speaker: 'The Hollow Stag', text: 'Thank you. I couldn’t put those bones down.' },
-    { at: 9, until: 13.8, speaker: 'The Hollow Stag', text: 'When the path closes, call for me. I’ll run it with you.' },
+    { at: 4.4, until: 8.6, speaker: 'The Hollow Stag', kind: 'whisper', text: 'Thank you. I’d forgotten what it was to stand without carrying the weight of those bones.' },
+    { at: 8.9, until: 13.8, speaker: 'The Hollow Stag', kind: 'whisper', text: 'The path goes on past the ridge. When you need me, call. I can take it at a run now.' },
   ],
   build(s) {
     s.actor('body', HOLLOW_STAG, 0, -9, 0.44, 0, 0.6);
@@ -129,13 +143,17 @@ const stagFall: Script = {
   },
   tick(s, t) {
     s.act('body', 'dead', 0.64 + smooth(0, 4, t) * 0.31);
-    s.get('body').overrides.dissolve = smooth(5.5, 11, t);
+    const body = s.get('body');
+    body.lift.rotation.z = 1.29;
+    body.overrides.dissolve = smooth(5.5, 11, t);
     const spirit = s.get('spirit');
     spirit.overrides.dissolve = 1 - smooth(1.5, 5, t) * (1 - smooth(11.5, 14, t));
     spirit.overrides.flash = 0.74;
     spirit.u.uFlashColor.value.set('#c0e8ff');
     s.hover('spirit', 0.55 * bump(2, 9, t));
     s.act('spirit', 'idle');
+    const bow = bump(4.5, 8.9, t);
+    s.actors.get('spirit')!.input.extra = (a) => a.rig.rot('neck', 0.29 * bow).rot('head', 0.21 * bow);
     s.travel('spirit', [0, -9], [-7, -19], 10.2, 14);
   },
 };
@@ -148,8 +166,8 @@ const fenwyrmFall: Script = {
     { t: 15, p: G(1.8, 1.4, -3), l: G(0, 1.1, -8), fov: 52 },
   ],
   lines: [
-    { at: 2, until: 6, speaker: 'The Fenwyrm', text: 'The water’s moving. Is this the way to the sea?' },
-    { at: 9.7, until: 14, text: 'It tries to swim away. The current turns back into you.', kind: 'caption' },
+    { at: 2, until: 7, speaker: 'The Fenwyrm', kind: 'whisper', text: 'Wait. I can taste the salt again. Get out of the riverbed, little thing. I’ve got a long way to swim.' },
+    { at: 9.5, until: 14.4, text: 'It throws itself against the current. You open your hand to let it pass, but the river has already found a new bed.', kind: 'caption' },
   ],
   build(s) {
     s.actor('fenwyrm', FENWYRM, 0, -8, 0.7, 0, 0.5);
@@ -186,8 +204,8 @@ const gorrikFall: Script = {
     { t: 12, p: G(1.4, 1.15, -4.8), l: G(0, 0.8, -8), fov: 50 },
   ],
   lines: [
-    { at: 2, until: 6, speaker: 'Gorrik', text: 'Keep the crown. It never put food in a mouth.' },
-    { at: 8, until: 11.8, text: 'His last footfall is still moving under your feet.', kind: 'caption' },
+    { at: 1.8, until: 6.9, speaker: 'Gorrik', kind: 'whisper', text: 'Tell the little ones there’s flour under the stall with the blue cloth. I hid it there. I was saving it till tomorrow.' },
+    { at: 7.9, until: 11.8, text: 'His hand drops. The ground takes the weight of it, then sends it up through the soles of your feet.', kind: 'caption' },
   ],
   build(s) {
     s.actor('gorrik', GORRIK, 0, -8, 0.7, 0, 0.5);
@@ -219,8 +237,8 @@ const heraldMemory: Script = {
   ],
   sounds: [{ at: 2.5, kind: 'bell' }, { at: 5.4, kind: 'bell' }],
   lines: [
-    { at: 8, until: 12, speaker: 'The Pale Herald', text: 'Even the stars find their way home.' },
-    { at: 12.2, until: 16.8, speaker: 'The Pale Herald', text: 'I’m tired of this place. Just one light. That’s all I’d need.' },
+    { at: 7.7, until: 11.9, speaker: 'The Pale Herald', text: 'My sister used to point out that crooked row of stars. I keep thinking she might be looking at it tonight.' },
+    { at: 12, until: 16.8, speaker: 'The Pale Herald', text: 'I climbed higher this time. I thought I’d see the road from here. Good God, I’m tired of walking.' },
   ],
   build(s) {
     s.actor('herald', PALE_HERALD, -8, -10, 1.3, 0, 0.5).group.scale.setScalar(0.75);
@@ -253,12 +271,12 @@ const heraldFall: Script = {
   id: 'herald-fall', region: 'bellfields', mood: 'throne', duration: 15,
   camera: [
     { t: 0, p: G(2.5, 0.85, -3.8), l: G(0, 0.45, -8), fov: 56 },
-    { t: 9, p: G(2, 1.25, -4.7), l: G(-0.8, 1.6, -8.2), fov: 52 },
+    { t: 9, p: G(2, 1.28, -3.9), l: G(-0.5, 1.94, -8.2), fov: 56 },
     { t: 15, p: G(2, 0.95, -4.7), l: G(-0.6, 0.65, -8), fov: 53 },
   ],
   sounds: [{ at: 8.25, kind: 'bell' }],
   lines: [
-    { at: 10, until: 14.5, text: 'The note falls still in your hands. The wood keeps holding its breath.', kind: 'caption' },
+    { at: 10, until: 14.7, text: 'He lets the cord go before the note is finished. It hangs in the clearing until you reach up and take it in both hands.', kind: 'caption' },
   ],
   build(s) {
     s.actor('herald', PALE_HERALD, 0.2, -8, -0.37, 0, 0.6).group.scale.setScalar(0.77);
@@ -272,12 +290,12 @@ const heraldFall: Script = {
     const mount = new THREE.Group();
     mount.position.set(0.17, 2.72, 0);
     bell.position.y = -0.25;
-    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1.28, 6), new THREE.MeshStandardMaterial({ color: '#b4a387' }));
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 1, 6), new THREE.MeshStandardMaterial({ color: '#b4a387' }));
     string.position.y = -0.76;
     mount.add(string, bell);
     staff.add(shaft, mount);
     s.add(staff);
-    heraldBell.set(s, mount);
+    heraldBell.set(s, { mount, string });
     stageHands(s);
     lumens.set(s, [s.lumen('#c6d5da', 0.33)]);
   },
@@ -285,14 +303,23 @@ const heraldFall: Script = {
     const rise = smooth(2, 7.6, t) * (1 - smooth(8.8, 11, t));
     const grab = smooth(5.2, 8.1, t) * (1 - smooth(8.8, 10, t));
     const figure = s.get('herald');
-    figure.core.rotation.z = -1.48 * (1 - rise);
+    figure.lift.rotation.x = -1.43 * (1 - rise);
     s.act('herald', 'idle');
     s.actors.get('herald')!.input.extra = (a) => a.rig.scl('staff', -1)
-      .rot('shoulderR', -1.5 * grab, -0.38 * grab, -0.4 * grab)
-      .rot('elbowR', -0.56 * grab).rot('head', -0.32 * rise);
+      .rot('shoulderR', -1.08 * grab, 0.18 * grab, -0.34 * grab)
+      .rot('elbowR', 0.41 * grab).rot('head', -0.23 * rise);
     figure.overrides.dissolve = smooth(9.1, 14.4, t);
     const ring = Math.max(0, t - 8.25);
-    heraldBell.get(s)!.rotation.z = ring > 0 ? Math.sin(ring * 12) * Math.exp(-ring * 2) * 0.32 : 0;
+    const { mount, string } = heraldBell.get(s)!;
+    mount.rotation.z = ring > 0 ? Math.sin(ring * 12) * Math.exp(-ring * 2) * 0.32 : 0;
+    const start = new THREE.Vector3(0, -0.27, 0);
+    const end = new THREE.Vector3(0, -1.38, 0);
+    const fingers = figure.bones.handR.localToWorld(new THREE.Vector3(0, -0.07, -0.015));
+    end.lerp(mount.worldToLocal(fingers), grab);
+    string.position.copy(start).lerp(end, 0.5);
+    const direction = start.sub(end);
+    string.scale.y = Math.max(0.001, direction.length());
+    string.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
     s.act('hands', 'strike', smooth(9, 12.2, t));
     const note = lumens.get(s)![0];
     note.place(s.at(-0.88, -8.2, 2.4).lerp(palm(s), smooth(9, 12.4, t)));
@@ -304,7 +331,7 @@ const heraldFall: Script = {
     });
   },
 };
-const heraldBell = new WeakMap<Shot, THREE.Group>();
+const heraldBell = new WeakMap<Shot, { mount: THREE.Group; string: THREE.Mesh }>();
 
 const widowMemory: Script = {
   id: 'widow-memory', region: 'loom', mood: 'deeps', memory: true, duration: 12,
@@ -359,8 +386,8 @@ const keepersMemory: Script = {
   id: 'keepers-memory', region: 'edge', mood: 'edge', memory: true, duration: 15,
   camera: [{ t: 0, p: G(3.7, 2.1, 2), l: G(-1.5, 2.6, -9), fov: 55 }, { t: 7, p: G(2.1, 1.8, 0), l: G(0, 3.1, -9), fov: 53 }, { t: 15, p: G(1.4, 1.3, -2), l: G(0, 3.55, -8), fov: 49 }],
   lines: [
-    { at: 1.2, until: 5.5, text: 'Elder Rowan came to the wood on foot, as any stranger might. It gave him a place to sleep.', kind: 'caption' },
-    { at: 10, until: 14.7, speaker: 'Elder Rowan', text: 'Leave them with me. I can carry them through the dark.' },
+    { at: 1, until: 5.5, text: 'When the Wanderer arrived, his boots were split. A woman from the wood put a bowl on her doorstep and told him to sit.', kind: 'caption' },
+    { at: 9.9, until: 14.8, speaker: 'The Wanderer', text: 'Wait. Give me the flowers. I know where the path floods. If I carry them, you’ll have both hands free.' },
   ],
   build(s) {
     s.actor('warden', WARDEN, -3.5, -9, 1.1, 0, 0.4).group.scale.setScalar(0.53);
@@ -413,8 +440,8 @@ const gathering: Script = {
   ],
   sounds: [{ at: 5.6, kind: 'strain' }],
   lines: [
-    { at: 1, until: 5, speaker: 'Elder Rowan', text: 'Every last one. I won’t leave anyone in the dark.' },
-    { at: 13, until: 17, text: 'He pulled until even the lights beneath the roots came loose.', kind: 'caption' },
+    { at: 1, until: 5, speaker: 'The Wanderer', text: 'Stay together. If you can hear me, stay where you are. I’ll bring enough for all of us.' },
+    { at: 12.5, until: 17.5, text: 'The flowers bent away from him. He planted his feet and pulled again. This time, the roots came with them.', kind: 'caption' },
   ],
   build(s) {
     s.actor('warden', WARDEN, 0, -8, 0, 0, 0.4).group.scale.setScalar(0.58);
@@ -450,9 +477,9 @@ const lightHunger: Script = {
     { t: 21, p: G(7.9, 1.95, -0.9), l: G(8, 3.85, -7), fov: 56, ease: 'linear' },
   ],
   lines: [
-    { at: 1.3, until: 5.7, text: 'He couldn’t close his hands around it. So he closed his heart around it instead.', kind: 'caption' },
-    { at: 8, until: 12, text: 'At first he walked to keep warm.', kind: 'caption' },
-    { at: 15.2, until: 20.8, text: 'By the last winter, the light was hungry. It walked him.', kind: 'caption' },
+    { at: 1.1, until: 5.7, text: 'It burned between his fingers. He could hear them calling behind him, but he pressed it to his chest and kept walking.', kind: 'caption' },
+    { at: 8, until: 12.8, text: 'At first he told himself he was looking for the others. When he passed the woman’s doorstep again, there was frost in her bowl.', kind: 'caption' },
+    { at: 15.2, until: 20.8, text: 'By the last winter he had forgotten which houses he was meant to knock at. He could still tell which ones were warm.', kind: 'caption' },
   ],
   build(s) {
     s.actor('warden', WARDEN, -9, -7, 0.6, 0, 0.4).group.scale.setScalar(0.59);
