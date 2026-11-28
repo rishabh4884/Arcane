@@ -373,7 +373,6 @@ export class GameHud {
   private bossGhostValue = 1;
   private bannerTimer = 0;
   private tipTimer = 0;
-  private healthTimer = 0;
   private healthValue = -1;
   private waveKey = '';
   private bossKey = '';
@@ -393,7 +392,6 @@ export class GameHud {
     this.dialogue.hidden = true;
     this.ghost = 100;
     this.healthValue = -1;
-    this.healthTimer = 0;
     this.tipTimer = 10.6;
     this.waveKey = '';
     this.bossKey = '';
@@ -436,10 +434,7 @@ export class GameHud {
     if (value !== this.healthValue) {
       this.healthValue = value;
       this.health.setAttribute('aria-valuenow', String(value));
-      this.healthTimer = 2.2;
     }
-    this.healthTimer -= dt;
-    this.health.classList.toggle('shown', this.healthTimer > 0 || hp < 30);
     this.health.dataset.low = String(hp < 30);
     this.tipTimer -= dt;
     if (this.tipTimer <= 0) this.tip.hidden = true;

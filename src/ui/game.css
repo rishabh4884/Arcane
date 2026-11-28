@@ -140,20 +140,19 @@
 /* ── in-level HUD ─────────────────────────────────────────────── */
 .game-hud { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
 .game-hud[hidden] { display: none; }
-.hud-top { display: flex; align-items: flex-start; gap: 1rem; padding: 1rem clamp(0.8rem, 2vw, 1.4rem); }
-.hud-vital { position: relative; width: min(180px, 30vw); height: 3px; overflow: hidden; background: rgba(255, 255, 255, 0.08); opacity: 0; transition: opacity .3s; }
-.hud-vital.shown { opacity: 1; }
+.hud-top { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 1rem; padding: 1rem clamp(0.8rem, 2vw, 1.4rem); }
+.hud-vital { position: relative; width: min(180px, 30vw, 100%); height: 8px; overflow: hidden; border-radius: 4px; background: rgba(255, 255, 255, 0.16); }
 .hud-vital-fill, .hud-vital-ghost { position: absolute; inset: 0; transform-origin: left; }
 .hud-vital-ghost { background: rgba(255, 140, 110, 0.55); }
 .hud-vital-fill { background: var(--lantern); transition: transform .15s; }
 .hud-vital[data-low='true'] .hud-vital-fill { background: #ff8067; }
-.hud-waves { display: grid; justify-items: center; gap: 0.3rem; margin: 0.2rem auto 0; padding: 0.5rem 1rem; color: #dfe4d4; font: 600 0.75rem var(--sans); letter-spacing: 0.14em; text-transform: uppercase; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.9); }
+.hud-waves { display: grid; justify-items: center; gap: 0.3rem; padding: 0.5rem 1rem; color: #dfe4d4; font: 600 0.75rem var(--sans); letter-spacing: 0.14em; text-transform: uppercase; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.9); }
 .hud-wave-dots { display: flex; gap: 0.4rem; }
 .hud-wave-dots i { width: 0.5rem; height: 0.5rem; border: 1px solid rgba(255, 217, 160, 0.6); border-radius: 50%; }
 .hud-wave-dots i.done { background: var(--lantern); box-shadow: 0 0 10px var(--lantern); }
 .hud-wave-dots i.now { background: rgba(255, 217, 160, 0.35); animation: lowpulse 1.4s infinite; }
 .hud-left-count { color: var(--mist); font-size: 0.68rem; letter-spacing: 0.1em; }
-.hud-pause { pointer-events: auto; display: flex; gap: 0.3rem; align-items: center; justify-content: center; width: 2.6rem; height: 2.6rem; margin-left: auto; border: 1px solid var(--panel-line); border-radius: 50%; background: var(--ink); cursor: pointer; }
+.hud-pause { pointer-events: auto; display: flex; gap: 0.3rem; align-items: center; justify-content: center; justify-self: end; width: 2.6rem; height: 2.6rem; border: 1px solid var(--panel-line); border-radius: 50%; background: var(--ink); cursor: pointer; }
 .hud-pause span { width: 0.26rem; height: 0.95rem; border-radius: 2px; background: var(--vellum); }
 .hud-pause:hover { border-color: rgba(255, 217, 160, 0.5); }
 .hud-boss { position: absolute; top: 3.5rem; left: 50%; width: min(620px, 80vw); transform: translateX(-50%); text-align: center; animation: rise 0.8s ease; }
