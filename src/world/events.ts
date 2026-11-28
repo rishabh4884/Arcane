@@ -22,6 +22,7 @@ export type GameEvent =
   | { type: 'wave-clear'; index: number }
   | { type: 'boss'; kind: CreatureKind; phase: number; name: string; title: string }
   | { type: 'boss-arrive'; kind: CreatureKind; position: THREE.Vector3; pan: number }
+  | { type: 'boss-dialogue'; kind: CreatureKind; speaker: string; text: string; pan: number; tense: boolean }
   | { type: 'gust'; position: THREE.Vector3; color: string }
   | { type: 'darkness'; seconds: number }
   | { type: 'toll'; position: THREE.Vector3 }

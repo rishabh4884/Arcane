@@ -154,6 +154,16 @@ export class AudioEngine {
       case 'wave-clear': [659.25, 783.99, 987.77].forEach((f, i) => this.tone({ type: 'sine', freq: f, decay: 1.2, gain: 0.05, when: i * 0.1, reverb: 1 })); break;
       case 'boss': if (event.phase > 0) this.roar(event.kind, 0, 1.2); break;
       case 'boss-arrive': this.roar(event.kind, event.pan, 1.6); break;
+      case 'boss-dialogue': {
+        if (event.kind === 'herald' || event.kind === 'king') break;
+        const frequency = event.kind === 'widow' ? 1850 : event.kind === 'matron' ? 830 : event.kind === 'grael' ? 145 : 420;
+        const gain = event.tense ? 0.22 : 0.12;
+        [0, 0.37, 0.87].forEach((when, i) => {
+          this.noise({ filter: 'bandpass', freq: frequency * (1 - i * 0.14), q: 2.4, attack: 0.05, decay: 0.28, gain, when, pan: event.pan, reverb: 0.8 });
+          this.tone({ type: 'triangle', freq: frequency * 0.23, freqEnd: frequency * 0.12, decay: 0.34, gain: gain * 0.32, when, pan: event.pan });
+        });
+        break;
+      }
       case 'toll': this.toll(); break;
       case 'screech': if (event.source === 'widow') this.widowScreech(event.pan, event.strength); break;
       case 'egg-break':

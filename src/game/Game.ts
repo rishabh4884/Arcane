@@ -245,6 +245,10 @@ export class Game {
       case 'wave-clear':
         this.hud.show('The wood stills', 'for a breath…', 2.2);
         break;
+      case 'boss-dialogue':
+        this.hud.hideTip();
+        this.hud.speak(e.speaker, e.text);
+        break;
       case 'boss':
         if (e.phase === 0) this.hud.show(e.name, e.title, 3.4);
         else this.hud.show(e.phase === 1 ? `${e.name} grows angry` : `${e.name} is desperate`, e.phase === 1 ? 'Its court answers' : 'Hold on', 2.4);

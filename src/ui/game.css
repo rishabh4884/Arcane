@@ -167,6 +167,10 @@
 .hud-boss-track i { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(0, 0, 0, 0.7); }
 .hud-banner { position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0; pointer-events: none; }
 .hud-banner.shown { animation: banner 2.6s ease forwards; }
+.hud-dialogue { position: absolute; inset: auto 0 max(15%, 5rem); width: min(36rem, 88vw); margin: auto; text-align: center; padding: .7rem 1.25rem; background: #0a1213ed; border-block: 1px solid #bda17880; color: #f9eddb; font: 500 clamp(1rem, 2vw, 1.35rem)/1.4 var(--serif); }
+.hud-dialogue[hidden] { display: none; }
+.hud-dialogue span { color: var(--lantern-hot); font: 600 .72rem var(--sans); }
+.hud-dialogue p { margin: .25rem 0; }
 @keyframes banner { 0% { opacity: 0; letter-spacing: 0.3em; filter: blur(6px); } 15% { opacity: 1; letter-spacing: 0.02em; filter: blur(0); } 78% { opacity: 1; } 100% { opacity: 0; } }
 .hud-banner h2 { margin: 0; font: italic 600 clamp(2.2rem, 6vw, 4rem)/1 var(--serif); text-shadow: 0 0 30px rgba(255, 217, 160, 0.45), 0 4px 24px rgba(0, 0, 0, 0.9); }
 .hud-banner p { margin: 0.5rem 0 0; color: var(--lantern); font: 600 0.8rem var(--sans); letter-spacing: 0.22em; text-transform: uppercase; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.9); }

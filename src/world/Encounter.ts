@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { SpellEffect } from '../config/spells.ts';
 import type { LevelDef, WaveGroup } from '../game/campaign.ts';
+import { BOSS_DIALOGUE } from '../game/bossDialogue.ts';
 import { DESIGNS } from './characters/index.ts';
 import { COOLDOWNS, CREATURE_SPECS, CreatureState, PlayerState, SPELL_DAMAGE, type AttackSpec, type CreatureKind, type CreatureSpec } from './EncounterState.ts';
 import type { GameEvents } from './events.ts';
@@ -147,6 +148,8 @@ export class Encounter {
   private generation = 0;
   private nextId = 0;
   private boss: Actor | null = null;
+  private dialogueIndex = -1;
+  private dialogueUntil = 0;
   private pendingSpawns: Array<{ at: number; kind: CreatureKind; from: WaveGroup['from']; slot: number; boss?: boolean }> = [];
   private stats: LevelStats = { time: 0, damageTaken: 0, casts: 0, released: 0, hits: 0 };
   private disposed = false;
@@ -183,6 +186,7 @@ export class Encounter {
    */
   skipCurrentWave(): boolean {
     if (this.mode !== 'wave' && this.mode !== 'boss-intro' && this.mode !== 'boss') return false;
+    this.dialogueUntil = 0;
 
     // Bring in every creature already promised by this fight so the player sees a full fall,
     // rather than silently deleting enemies that were still walking out of the wood.
@@ -227,7 +231,7 @@ export class Encounter {
     for (const a of this.actors) { a.figure.dispose(); a.warning.removeFromParent(); }
     this.actors.length = 0;
     this.clearProjectiles();
-    for (const h of this.hazards) h.object.removeFromParent();
+    for (const h of this.hazards) this.disposeHazard(h);
     this.hazards.length = 0;
     this.queued.length = 0;
     this.pendingSpawns.length = 0;
@@ -240,7 +244,7 @@ export class Encounter {
   }
 
   snapshot(): EncounterSnapshot {
-    const b = this.boss;
+    const b = this.mode === 'boss-intro' && !this.level?.trial ? null : this.boss;
     return {
       mode: this.mode, wave: Math.max(0, this.waveIndex + 1), waves: this.level?.waves.length ?? 0,
       alive: this.actors.filter((a) => a.state.alive && a.kind !== 'egg').length + this.pendingSpawns.length,
@@ -272,8 +276,14 @@ export class Encounter {
   private beginBoss(): void {
     const level = this.level!;
     this.setMode('boss-intro');
+    this.dialogueIndex = -1;
+    this.dialogueUntil = 0;
+    this.clearProjectiles();
+    for (const hazard of this.hazards) this.disposeHazard(hazard);
+    this.hazards.length = 0;
+    this.queued.length = 0;
+    this.summons.clear();
     this.pendingSpawns.push({ at: this.time + (level.kind === 'final' ? 0.6 : 2.4), kind: level.boss!, from: 'front', slot: 0, boss: true });
-    this.fx.events?.emit({ type: 'boss', kind: level.boss!, phase: 0, name: CREATURE_SPECS[level.boss!].name, title: CREATURE_SPECS[level.boss!].title ?? '' });
     // The Widow comes to her brood: clutches of eggs lie in the clearing, between her and the caster.
     if (level.boss === 'widow' && !level.trial) {
       const r = mulberry(this.generation * 313 + 7);
@@ -315,12 +325,27 @@ export class Encounter {
         if (this.modeTime > 3.4) this.beginWave(this.waveIndex + 1);
         break;
       case 'boss-intro':
-        if (this.boss && this.modeTime > 1) this.setMode('boss');
+        if (this.boss && this.modeTime > 1) this.updateBossIntroduction(this.boss);
         break;
       case 'boss':
         if (this.boss && !this.boss.state.alive && this.boss.state.progress >= 0.6 && !living) this.win();
         break;
     }
+  }
+
+  private updateBossIntroduction(actor: Actor): void {
+    if (this.modeTime < this.dialogueUntil) return;
+    const line = actor.state.alive && !this.level?.trial ? BOSS_DIALOGUE[actor.kind]?.[++this.dialogueIndex] : undefined;
+    if (line) {
+      this.dialogueUntil = this.modeTime + line.seconds;
+      this.fx.events?.emit({
+        type: 'boss-dialogue', kind: actor.kind, speaker: actor.spec.name, text: line.text,
+        pan: this.pan(actor.figure.group.position), tense: line.turn ?? false,
+      });
+      return;
+    }
+    this.setMode('boss');
+    if (actor.state.alive) this.fx.events?.emit({ type: 'boss', kind: actor.kind, phase: 0, name: actor.spec.name, title: actor.spec.title ?? '' });
   }
 
   private win(): void {
@@ -343,6 +368,7 @@ export class Encounter {
     const r = mulberry(this.generation * 977 + slot * 131 + this.waveIndex * 17);
     let x: number, z: number;
     if (boss && this.level?.trial) { x = SPAWN.x; z = SPAWN.z - (2.5 + CREATURE_SPECS[this.level.boss!].height * 1.2); }
+    else if (boss && this.level?.boss === 'widow') { x = 15; z = -21; }
     else if (boss) { x = (r() - 0.5) * 4; z = -24 - r() * 4; }
     else if (from === 'left' || from === 'right') { x = (from === 'left' ? -1 : 1) * (22 + r() * 5); z = -10 + r() * 16; }
     else { x = (r() - 0.5) * 30; z = -18 - r() * 18; }
@@ -383,7 +409,7 @@ export class Encounter {
     this.actors.push(actor);
     if (boss) {
       this.boss = actor;
-      this.fx.events?.emit({ type: 'boss-arrive', kind, position: position.clone(), pan: this.pan(position) });
+      if (level?.trial || !BOSS_DIALOGUE[kind]) this.fx.events?.emit({ type: 'boss-arrive', kind, position: position.clone(), pan: this.pan(position) });
     }
     this.fx.mist?.burst(position.clone().setY(position.y + 0.3), boss ? 26 : 8, { speed: boss ? 2.4 : 1.2, color: new THREE.Color('#4f5c56'), size: boss ? 2.4 : 1.1, sizeEnd: boss ? 5 : 2.4, alpha: 0.35, ttl: 2, drag: 1.4, style: 'mist' });
     return actor;
@@ -404,7 +430,7 @@ export class Encounter {
   hush(seconds: number): void { for (const a of this.actors) if (a.state.alive) a.figure.still(seconds); }
 
   cast(effect: SpellEffect): boolean {
-    if (!this.player.alive || !this.active) return false;
+    if (!this.player.alive || !this.active || (this.mode === 'boss-intro' && !this.level?.trial)) return false;
     if (!this.player.cast(effect)) return false;
     this.stats.casts++;
     if (effect === 'bloom') for (const a of this.actors) a.state.rootFor(2.5);
@@ -597,7 +623,7 @@ export class Encounter {
   }
 
   private hitFoe(a: Actor, effect: SpellEffect, point: THREE.Vector3, amount?: number): void {
-    if (this.disposed || !a.state.alive || !this.active) return;
+    if (this.disposed || !a.state.alive || !this.active || (this.mode === 'boss-intro' && !this.level?.trial)) return;
     const before = a.state.health;
     let base = amount ?? SPELL_DAMAGE[effect] ?? 0;
     // An egg counts blows, not their weight: any five break it, a burn's ticks do not.
@@ -702,7 +728,7 @@ export class Encounter {
       this.player.health = Math.max(1, this.player.health - 2.2 * dt);
     }
     this.updateFlow(dt);
-    const fighting = this.active && this.player.alive;
+    const fighting = this.active && this.player.alive && (this.mode !== 'boss-intro' || !!this.level?.trial);
     PLAYER_GROUND.copy(this.camera.position).setY(terrainHeight(this.camera.position.x, this.camera.position.z));
     for (const a of this.actors) this.updateActor(a, dt, fighting, reducedMotion);
     // Spells queued on the game clock.
@@ -755,6 +781,14 @@ export class Encounter {
     // Movement.
     a.velocity.set(0, 0, 0);
     let faceYaw: number | null = Math.atan2(dx, dz);
+    const entering = a === this.boss && a.kind === 'widow' && a.state.alive && this.mode === 'boss-intro'
+      && !this.level?.trial && this.dialogueIndex < 2 && p.x > 4;
+    if (entering) {
+      a.velocity.set(-1.7, 0, 0.36);
+      moveOnGround(p, a.velocity.x * dt, a.velocity.z * dt, this.obstacles);
+      p.y -= EYE_HEIGHT;
+      faceYaw = Math.atan2(a.velocity.x, a.velocity.z);
+    }
     if (a.knock) this.updateKnock(a, dt);
     if (a.blink) this.updateBlink(a, dt);
     else if (a.knock) faceYaw = null;
@@ -775,7 +809,7 @@ export class Encounter {
       if (!a.state.alive) a.altitude = Math.max(0.2, a.altitude - dt * 1.5);
     }
     a.figure.update(dt, {
-      pose: a.state.pose, progress: a.state.progress, attack: a.state.attack.id, velocity: a.velocity, faceYaw,
+      pose: entering ? 'walk' : a.state.pose, progress: a.state.progress, attack: a.state.attack.id, velocity: a.velocity, faceYaw,
       look: this.camera.position, groundY: p.y + (spec.hover ? a.altitude : 0), reducedMotion, anger: a.anger,
     });
     if (spec.hover) a.figure.lift.position.y += a.altitude;
@@ -1241,11 +1275,19 @@ export class Encounter {
         if (!h.hit && front >= h.reach) { h.hit = true; this.damage(h.damage, 'spikes'); }
       }
       if (h.age >= h.life + (h.kind === 'spikes' ? 0 : 0.05)) {
-        h.object.removeFromParent();
-        h.object.traverse((o) => { if (o instanceof THREE.Mesh) { if (o.geometry !== this.ringGeometry && o.geometry !== this.spikeGeometry) o.geometry.dispose(); (o.material as THREE.Material).dispose(); } });
+        this.disposeHazard(h);
         this.hazards.splice(i, 1);
       }
     }
+  }
+
+  private disposeHazard(hazard: Hazard): void {
+    hazard.object.removeFromParent();
+    hazard.object.traverse((object) => {
+      if (!(object instanceof THREE.Mesh)) return;
+      if (object.geometry !== this.ringGeometry && object.geometry !== this.spikeGeometry) object.geometry.dispose();
+      (object.material as THREE.Material).dispose();
+    });
   }
 
   /* ─────────────────────────────── presentation helpers ─────────────────────────────── */

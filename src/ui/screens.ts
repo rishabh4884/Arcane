@@ -364,6 +364,7 @@ export class GameHud {
   private readonly bossFill = el('span', { class: 'hud-boss-fill' });
   private readonly bossGhost = el('span', { class: 'hud-boss-ghost' });
   private readonly banner = el('div', { class: 'hud-banner', 'aria-live': 'polite' });
+  private readonly dialogue = el('div', { class: 'hud-dialogue', role: 'status', hidden: true });
   private readonly tip = el('p', { class: 'hud-tip' });
   /** Character trial only: one button per attack of the creature on the field. */
   private readonly trial = el('div', { class: 'hud-trial', hidden: true });
@@ -381,13 +382,14 @@ export class GameHud {
     pause.addEventListener('click', onPause);
     this.health.append(this.healthGhost, this.healthFill);
     this.boss.append(this.bossName, el('span', { class: 'hud-boss-track' }, this.bossGhost, this.bossFill, el('i', { style: { left: '33%' } }), el('i', { style: { left: '67%' } })));
-    this.root.append(el('div', { class: 'hud-top' }, this.health, this.waves, pause), this.boss, this.banner, this.tip, this.trial);
+    this.root.append(el('div', { class: 'hud-top' }, this.health, this.waves, pause), this.boss, this.banner, this.tip, this.trial, this.dialogue);
     parent.append(this.root);
   }
 
   start(level: LevelDef, onAttack?: (id: string) => void): void {
     const chapter = CHAPTERS[level.chapter - 1];
     this.boss.hidden = true;
+    this.dialogue.hidden = true;
     this.ghost = 100;
     this.healthValue = -1;
     this.healthTimer = 0;
@@ -405,6 +407,12 @@ export class GameHud {
 
   hide(): void { conceal(this.root); }
 
+  speak(speaker: string, text: string): void {
+    this.banner.classList.remove('shown');
+    this.dialogue.replaceChildren(el('span', {}, speaker), el('p', {}, text));
+    this.dialogue.hidden = false;
+  }
+
   /** A large centred line that fades: wave calls, boss names, the end of a fight. */
   show(text: string, sub = '', seconds = 2.4): void {
     this.banner.replaceChildren(el('h2', {}, text), sub ? el('p', {}, sub) : '');
@@ -415,6 +423,7 @@ export class GameHud {
   }
 
   update(s: EncounterSnapshot, dt: number): void {
+    if (s.mode !== 'boss-intro') this.dialogue.hidden = true;
     this.bannerTimer -= dt;
     if (this.bannerTimer <= 0) this.banner.classList.remove('shown');
     const hp = Math.max(0, s.player.health);
