@@ -323,18 +323,13 @@ export class Encounter {
     this.queued.length = 0;
     this.summons.clear();
     this.pendingSpawns.push({ at: this.time + (level.kind === 'final' ? 0.6 : 2.4), kind: level.boss!, from: 'front', slot: 0, boss: true });
-    // The Widow comes to her brood: clutches of eggs lie in the clearing, between her and the caster.
+    // The two surviving eggs sit sheltered under opposite sides of the old root.
     if (level.boss === 'widow' && !level.trial) {
-      const r = mulberry(this.generation * 313 + 7);
-      let slot = 900;
-      for (const [cx, cz] of [[-8, -15], [7.5, -18], [-1.5, -10]]) {
-        for (let i = 0; i < 2; i++) {
-          const angle = r() * Math.PI * 2, d = 0.7 + r() * 0.6;
-          const at = new THREE.Vector3(cx + Math.cos(angle) * d, 0, cz + Math.sin(angle) * d);
-          moveOnGround(at, 0, 0, this.obstacles);
-          at.y = terrainHeight(at.x, at.z);
-          this.spawn('egg', 'front', slot++, false, at);
-        }
+      for (const [i, x] of [-3.65, -2.15].entries()) {
+        const at = new THREE.Vector3(x, 0, -7.8 - i * 0.8);
+        moveOnGround(at, 0, 0, this.obstacles);
+        at.y -= EYE_HEIGHT;
+        this.spawn('egg', 'front', 900 + i, false, at);
       }
     }
   }
@@ -407,7 +402,7 @@ export class Encounter {
     const r = mulberry(this.generation * 977 + slot * 131 + this.waveIndex * 17);
     let x: number, z: number;
     if (boss && this.level?.trial) { x = SPAWN.x; z = SPAWN.z - (2.5 + CREATURE_SPECS[this.level.boss!].height * 1.2); }
-    else if (boss && this.level?.boss === 'widow') { x = 15; z = -21; }
+    else if (boss && this.level?.boss === 'widow') { x = 12.7; z = -10; }
     else if (boss) { x = (r() - 0.5) * 4; z = -24 - r() * 4; }
     else if (from === 'left' || from === 'right') { x = (from === 'left' ? -1 : 1) * (22 + r() * 5); z = -10 + r() * 16; }
     else { x = (r() - 0.5) * 30; z = -18 - r() * 18; }
@@ -843,9 +838,9 @@ export class Encounter {
     let faceYaw: number | null = Math.atan2(dx, dz);
     const speaking = a === this.boss && a.state.alive && this.mode === 'boss-intro' && !this.level?.trial;
     const line = speaking ? BOSS_DIALOGUE[a.kind]?.[this.dialogueIndex] : undefined;
-    const entering = speaking && a.kind === 'widow' && this.dialogueIndex < 2 && p.x > 4;
+    const entering = speaking && a.kind === 'widow' && this.dialogueIndex < 2 && p.x > 3.2;
     if (entering) {
-      a.velocity.set(-1.7, 0, 0.36);
+      a.velocity.set(-1.48, 0, 0.58);
       moveOnGround(p, a.velocity.x * dt, a.velocity.z * dt, this.obstacles);
       p.y -= EYE_HEIGHT;
       faceYaw = Math.atan2(a.velocity.x, a.velocity.z);
@@ -1390,7 +1385,7 @@ export class Encounter {
   }
 
   private updateIndicators(dt: number, paused: boolean, reducedMotion: boolean): void {
-    this.indicators.update(dt, this.camera, this.actors.filter((a) => !a.boss).map((a) => ({
+    this.indicators.update(dt, this.camera, this.actors.filter((a) => !a.boss && (this.mode !== 'boss-intro' || a.kind !== 'egg')).map((a) => ({
       id: a.id, position: a.spec.hover ? a.figure.group.position.clone().setY(a.figure.group.position.y + a.altitude) : a.figure.group.position,
       height: a.spec.height * a.figure.group.scale.y, elder: a.elder, name: a.elder ? `Elder ${a.spec.name.replace(/^The /, '')}` : a.spec.name, health: a.state.health, maximum: a.state.maxHealth, state: a.state.pose, progress: a.state.progress,
     })), paused, reducedMotion);

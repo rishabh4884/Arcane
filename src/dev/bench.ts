@@ -21,7 +21,7 @@ import { handsAt } from './syntheticHands.ts';
  * resolution are recorded in five-second windows, so a slow drift over time shows as clearly as
  * a slow frame. Results go on screen and to `window.__arcaneBench` (JSON) when the run ends.
  *
- * Parameters: `bench=<seconds per level>` (default 30), `levels=3,10,20` (default 3,10,20,30,40),
+ * Parameters: `bench=<seconds per level>` (default 30), `levels=3,11,22` (default 3,11,22,33,48),
  * `camera=0` (no camera), `hands=0`, `casts=0`, `warm=<seconds before recording>` (default 3).
  * Saves are never touched (see storage.ts), and cutscenes are skipped.
  *
@@ -115,7 +115,7 @@ export async function runBench(deps: BenchDeps): Promise<void> {
   const params = new URLSearchParams(location.search);
   const diagnose = params.has('diagnose');
   const seconds = Number(params.get('bench')) || 30;
-  const levels = (params.get('levels') ?? '3,10,20,30,40').split(',').map(Number).filter((id) => levelById(id));
+  const levels = (params.get('levels') ?? '3,11,22,33,48').split(',').map(Number).filter((id) => levelById(id));
   const warm = Number(params.get('warm') ?? (diagnose ? 6 : 3));
   const world = deps.world;
   const internals = world as unknown as Internals;

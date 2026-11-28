@@ -321,7 +321,12 @@ export class Game {
     return {
       /** Leave the loading screen as the Enter button does (opens the camera). */
       enter: () => this.enter(),
-      play: (id: number) => { const l = levelById(id); if (l) this.startLevel(l); },
+      play: (id: number) => {
+        const level = levelById(id);
+        if (!level) return;
+        if (this.state === 'loading') this.loading.hide();
+        this.startLevel(level);
+      },
       scene: async (id: string) => { const s = SCRIPTS[id]; if (s) { this.hideScreens(); this.setBody('cutscene'); await this.cutscenes.play(s); this.toMenu(); } },
       win: () => { this.progress.complete(this.level!, 10, 0); },
       unlockAll: () => { for (const l of LEVELS) this.progress.complete(l, 60, 0); this.deps.book.setLearned(this.progress.learned); this.toMenu(); },
